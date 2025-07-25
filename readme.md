@@ -11,7 +11,7 @@ clanker_sniffer/
 ├── classifier-api/    # AI/human prediction microservice
 ├── db/                # optional: init.sql or migration files
 ├── docker-compose.yml
-├── .env
+├── .env.local
 ├── .gitignore
 └── README.md
 

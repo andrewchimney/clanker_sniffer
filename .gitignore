@@ -33,3 +33,6 @@ logs/
 
 # VSCode (optional, but nice)
 .vscode/
+
+#env
+.env

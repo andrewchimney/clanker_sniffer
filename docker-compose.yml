@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:15
+    container_name: clanker_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+
+  frontend:
+    build: ./frontend
+    container_name: clanker_frontend
+    depends_on:
+      - db
+    restart: on-failure
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3000:3000"
+    working_dir: /app
+    command: sh -c "apt-get update && apt-get install -y docker.io && npm run dev"
+    volumes:
+      - ./shared_data:/app/shared_data
+      - ./frontend:/app
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock 
+
+  demucs_api:
+    build: ./demucs-api
+    container_name: clanker_demucs
+    command: tail -f /dev/null
+    depends_on:
+      - frontend
+    restart: on-failure
+    volumes:
+      - ./shared_data:/app/shared_data
+      - ./demucs-api:/app
+    working_dir: /app
+
+  whisper_api:
+    build: ./whisper-api
+    container_name: clanker_whisper
+    command: tail -f /dev/null
+    depends_on:
+      - frontend
+    restart: on-failure
+    volumes:
+      - ./shared_data:/app/shared_data
+      - ./whisper-api:/app
+    working_dir: /app
+
+  classifier_api:
+    build: ./classifier-api
+    container_name: clanker_classifier
+    command: tail -f /dev/null
+    depends_on:
+      - frontend
+    restart: on-failure
+    volumes:
+      - ./shared_data:/app/shared_data
+      - ./classifier-api:/app
+    working_dir: /app
+
+volumes:
+  pgdata:

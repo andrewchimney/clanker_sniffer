@@ -3,7 +3,7 @@
 
 export async function GET() {
 
-  return new Response(JSON.stringify({sucess: true}), {
+  return new Response(JSON.stringify({suc: true}), {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });

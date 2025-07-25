@@ -8,3 +8,11 @@ export async function GET() {
     headers: { "Content-Type": "application/json" },
   });
 }
+
+export async function POST() {
+
+  return new Response(JSON.stringify({sucess: true}), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
