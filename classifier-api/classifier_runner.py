@@ -1,5 +1,15 @@
 import sys
+import os
+from datetime import datetime
+import json
 
 if __name__ == "__main__":
-    input_string = sys.argv[1]  # get the argument passed in
-    print(f"classifier received input: {input_string}")
+    lyrics = sys.argv[1]
+    
+    print(f"📥 Receivedasdsa: {lyrics}", file=sys.stderr)
+
+    # Simulate transcript
+    classification = "AI"
+    accuracy = .9324
+    print(json.dumps({"classification": classification, "accuracy": accuracy}))
+

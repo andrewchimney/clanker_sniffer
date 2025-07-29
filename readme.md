@@ -75,6 +75,28 @@ Built in Next.js, the frontend allows users to:
   - Indicates which microservice is active for each song
   - Useful for debugging and tracking task progress
 
+
+------------------------------------------------------
+| Clanker Sniffer 🎧                                  |
+------------------------------------------------------
+| [🔊 Upload Audio] [📝 Paste Lyrics]                 |
+|                                                    |
+|   [ ] Isolate Vocals (Demucs)                      |
+|   [ ] Transcribe Vocals (Demucs + Whisper)         |
+|   [ ] Detect AI Lyrics from audio (Demucs + Whisper + Classifier) |
+|   [ ] Detect AI Lyrics from text (Classifier)      |
+|                                                    |
+|   [ Song Title ________ ]                          |
+|   [ Artist  ________ ]                             |
+|                                                    |
+|   [Choose File 📁]   [Submit 🚀]                    |
+------------------------------------------------------
+| 📂 Processed Songs | 📋 Queue                      |
+------------------------------------------------------
+| 🎵 Song Title | 👤 Artist | ✅ Done | 🔍 View    |
+------------------------------------------------------
+
+
 > ⚙️ Yes, microservices can run concurrently if jobs are queued and dispatched correctly. For example, you can process multiple songs at once by scaling containers (e.g., 2 `demucs-api`, 3 `whisper-api`, etc.) or using a job queue.
 
 ### 🛠 DevOps Stack

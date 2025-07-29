@@ -8,63 +8,55 @@
 //   - Orchestrates the above 3 services
 //   - Stores result in Postgres
 
-
-import { exec } from 'child_process';
+import { pool } from '@/lib/db';
+import { runDemucs, runWhisper, runClassifier, waitForFile } from '@/lib/pipeline';
 import { NextRequest } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 
-// export async function GET() {
-
-//   return new Response(JSON.stringify({sucess: true}), {
-//     status: 200,
-//     headers: { "Content-Type": "application/json" },
-//   });
-// }
 
 export async function POST(req: NextRequest) {
 
-  //const { filepath } = await req.json();
-  const inputString = "testing"
 
-  // Step 1: Run Demucs
-  const runDemucs = () =>
-    new Promise((resolve, reject) => {
-      exec(
-        `docker exec clanker_demucs python3 /app/demucs_runner.py "${inputString}"`,
-        (error, stdout, stderr) => {
-          if (error) return reject(stderr);
-          resolve(stdout);
-        }
-      );
-    });
+  const formData = await req.formData();
+  const audioFile = formData.get('audio') as File;
+  const useDemucs = formData.get('useDemucs') === 'true';
+  const useWhisper = formData.get('useWhisper') === 'true';
+  const useClassifier = formData.get('useClassifer') === 'true';
+  const name = formData.get('name');
+  const artist = formData.get('artist');
 
-  // Step 2: Run Whisper
-  const runWhisper = () =>
-    new Promise((resolve, reject) => {
-      exec(
-        `docker exec clanker_whisper python3 /app/whisper_runner.py "${inputString}"`,
-        (error, stdout, stderr) => {
-          if (error) return reject(stderr);
-          resolve(stdout);
-        }
-      );
-    });
 
-  // Step 3: Run Classifier
-  const runClassifier = () =>
-    new Promise((resolve, reject) => {
-      exec(
-        `docker exec clanker_classifier python3 /app/classifier_runner.py "${inputString}"`,
-        (error, stdout, stderr) => {
-          if (error) return reject(stderr);
-          resolve(stdout);
-        }
-      );
-    });
+  if (!audioFile) return new Response(JSON.stringify({ error: 'No file uploaded', status: 400 }));
+
+  const fileBuffer = Buffer.from(await audioFile.arrayBuffer());
+  const sharedPath = '/shared_data';
+
+  let fileName = `${Date.now()}_${audioFile.name}`;
+  fileName = `${Date.now()}_${audioFile.name.replace(/[:\s]/g, "_")}`;
+  const fullPath = path.join(sharedPath, fileName);
+
+  // Make sure shared path exists
+  fs.mkdirSync(sharedPath, { recursive: true });
+
+  // Write to shared volume
+  fs.writeFileSync(fullPath, fileBuffer);
+
 
   try {
-    const demucsOut = await runDemucs();
-    const whisperOut = await runWhisper();
-    const classifierOut = await runClassifier();
+    await waitForFile(path.join(sharedPath, fileName));
+    const demucsOut = await runDemucs(fileName);
+    await waitForFile(path.join(sharedPath,"vocal_stems/", fileName));
+    const whisperOut = await runWhisper(fileName);
+    const classifierOut = await runClassifier(whisperOut.lyrics);
+
+
+    await pool.query(
+      `INSERT INTO songs (name, artist, lyrics, classification, accuracy, stem_name)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+      [name, artist, whisperOut.lyrics, classifierOut.classification, classifierOut.accuracy, fileName]
+    );
+
 
     return new Response(
       JSON.stringify({

@@ -27,10 +27,12 @@ services:
     working_dir: /app
     command: sh -c "apt-get update && apt-get install -y docker.io && npm run dev"
     volumes:
-      - ./shared_data:/app/shared_data
       - ./frontend:/app
-      - /app/node_modules
-      - /var/run/docker.sock:/var/run/docker.sock 
+      - ./shared_data:/shared_data    
+      - /app/node_modules 
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - ./.env
 
   demucs_api:
     build: ./demucs-api
@@ -40,8 +42,8 @@ services:
       - frontend
     restart: on-failure
     volumes:
-      - ./shared_data:/app/shared_data
       - ./demucs-api:/app
+      - ./shared_data:/shared_data
     working_dir: /app
 
   whisper_api:
@@ -52,9 +54,11 @@ services:
       - frontend
     restart: on-failure
     volumes:
-      - ./shared_data:/app/shared_data
       - ./whisper-api:/app
+      - ./shared_data:/shared_data
     working_dir: /app
+    env_file:
+      - ./.env
 
   classifier_api:
     build: ./classifier-api
@@ -64,9 +68,10 @@ services:
       - frontend
     restart: on-failure
     volumes:
-      - ./shared_data:/app/shared_data
       - ./classifier-api:/app
+      - ./shared_data:/shared_data
     working_dir: /app
 
 volumes:
   pgdata:
+  #shared_data:

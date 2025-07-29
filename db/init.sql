@@ -1,9 +1,12 @@
 CREATE TABLE songs (
     id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,               -- Song name
-    artist TEXT,                      -- Artist name (optional)
-    lyrics TEXT,                      -- May be null if not transcribed
-    classification TEXT,             -- "AI" or "Human" (nullable if not run)
-    accuracy FLOAT,                   -- Confidence score (nullable)
+    name TEXT NOT NULL,                    -- Original file name
+    artist TEXT,                           -- Optional artist name
+    lyrics TEXT,                           -- Transcription from Whisper
+    classification TEXT CHECK (
+        classification IN ('AI', 'Human')
+    ),                                     -- Classification result
+    accuracy NUMERIC(5, 4),                -- Confidence score (e.g. 0.9234)
+    stem_name TEXT,                       -- Path to the vocal stem file
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

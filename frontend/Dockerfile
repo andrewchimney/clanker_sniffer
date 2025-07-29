@@ -4,7 +4,12 @@ FROM node:20
 WORKDIR /app
 
 COPY package*.json ./
+RUN npm install pg
+RUN npm install swr
+
+
 RUN npm install
+#COPY .env .env
 
 COPY . .
 
