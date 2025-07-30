@@ -28,8 +28,8 @@ services:
     command: sh -c "apt-get update && apt-get install -y docker.io && npm run dev"
     volumes:
       - ./frontend:/app
-      - ./shared_data:/shared_data    
-      - /app/node_modules 
+      - ./shared_data:/shared_data
+      - /app/node_modules
       - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - ./.env
@@ -72,6 +72,19 @@ services:
       - ./shared_data:/shared_data
     working_dir: /app
 
+  acousti_api:
+    build: ./acousti-api
+    container_name: clanker_acousti
+    command: tail -f /dev/null
+    depends_on:
+      - frontend
+    restart: on-failure
+    volumes:
+      - ./acousti-api:/app
+      - ./shared_data:/shared_data
+    working_dir: /app
+    env_file:
+      - ./.env
+
 volumes:
-  pgdata:
-  #shared_data:
+  pgdata: #shared_data:

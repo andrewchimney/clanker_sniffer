@@ -7,12 +7,14 @@
 //     - `run_classifier`: bool
 //   - Orchestrates the above 3 services
 //   - Stores result in Postgres
-
+import { exec } from 'child_process';
 import { pool } from '@/lib/db';
-import { runDemucs, runWhisper, runClassifier, waitForFile } from '@/lib/pipeline';
+import { runDemucs, runWhisper, runClassifier, waitForFile, dPipeline, dwPipeline, dwcPipeline, cPipeline, runAcousti } from '@/lib/pipeline';
+
 import { NextRequest } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { promisify } from 'util';
 
 
 export async function POST(req: NextRequest) {
@@ -20,48 +22,82 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData();
   const audioFile = formData.get('audio') as File;
-  const useDemucs = formData.get('useDemucs') === 'true';
-  const useWhisper = formData.get('useWhisper') === 'true';
-  const useClassifier = formData.get('useClassifer') === 'true';
-  const name = formData.get('name');
+  const mode = formData.get("mode");
+  const title = formData.get('title');
   const artist = formData.get('artist');
+  const lyricsData = formData.get('lyrics');
+  let lyrics = "";
+  if (typeof lyricsData === 'string') {
+    lyrics = lyricsData;
+  }
+  
+
 
 
   if (!audioFile) return new Response(JSON.stringify({ error: 'No file uploaded', status: 400 }));
 
-  const fileBuffer = Buffer.from(await audioFile.arrayBuffer());
+  let fileName = `${Date.now()}_${audioFile.name.replace(/[:\s]/g, "_")}`;
   const sharedPath = '/shared_data';
-
-  let fileName = `${Date.now()}_${audioFile.name}`;
-  fileName = `${Date.now()}_${audioFile.name.replace(/[:\s]/g, "_")}`;
-  const fullPath = path.join(sharedPath, fileName);
-
-  // Make sure shared path exists
   fs.mkdirSync(sharedPath, { recursive: true });
 
-  // Write to shared volume
-  fs.writeFileSync(fullPath, fileBuffer);
+  let finalFileName: string;
+  let finalPath: string;
+
+  if (fileName.toLowerCase().endsWith('.wav')) {
+    // Already WAV — just save it directly
+    finalFileName = fileName;
+    finalPath = path.join(sharedPath, finalFileName);
+    fs.writeFileSync(finalPath, Buffer.from(await audioFile.arrayBuffer()));
+  } else {
+    // Save temp MP3 and convert
+    const tempPath = path.join(sharedPath, fileName);
+    fs.writeFileSync(tempPath, Buffer.from(await audioFile.arrayBuffer()));
+
+    finalFileName = fileName.replace(/\.[^/.]+$/, '.wav');
+    finalPath = path.join(sharedPath, finalFileName);
+
+    
+    try {
+      const execAsync = promisify(exec);
+      //await execAsync(`ffmpeg -y -i "${tempPath}" -ar 44100 -ac 2 "${finalPath}"`);
+      await execAsync(`ffmpeg -y -i "${tempPath}" -acodec pcm_s16le -ar 44100 -ac 2 "${finalPath}"`);
+
+      
+      fs.unlinkSync(tempPath); // 🗑️ Remove temp MP3
+      console.log(`✅ Converted and saved: ${finalFileName}`);
+    } catch (err) {
+      console.error("❌ Conversion failed:", err);
+      return new Response(JSON.stringify({ error: 'Audio conversion failed' }), { status: 500 });
+    }
+  }
+
+
+
 
 
   try {
-    await waitForFile(path.join(sharedPath, fileName));
-    const demucsOut = await runDemucs(fileName);
-    await waitForFile(path.join(sharedPath,"vocal_stems/", fileName));
-    const whisperOut = await runWhisper(fileName);
-    const classifierOut = await runClassifier(whisperOut.lyrics);
+    let out;
 
-
-    await pool.query(
-      `INSERT INTO songs (name, artist, lyrics, classification, accuracy, stem_name)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-      [name, artist, whisperOut.lyrics, classifierOut.classification, classifierOut.accuracy, fileName]
-    );
-
+    switch (mode) {
+      case 'demucs':
+        out = await dPipeline(finalFileName);
+        break;
+      case 'demucs-whisper':
+        out = await dwPipeline(finalFileName);
+        break;
+      case 'demucs-whisper-classifier':
+        out = await dwcPipeline(finalFileName);
+        break;
+      case 'classifier-text':
+        out = await cPipeline(lyrics);
+        break;
+      default:
+        throw new Error(`Invalid mode: ${mode}`);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        outputs: { demucsOut, whisperOut, classifierOut },
       }),
       {
         status: 200,

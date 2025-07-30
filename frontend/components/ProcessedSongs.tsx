@@ -1,41 +1,56 @@
-// components/ProcessedSongs.tsx
 'use client';
 
 import useSWR from 'swr';
 
+const fetcher = (url: string) => fetch(url).then(res => res.json());
+
+export function swrSongs() {
+  return useSWR('/api/songs', fetcher, { refreshInterval: 5000 });
+}
+
 export default function ProcessedSongs() {
-  const fetcher = (url: string) => fetch(url).then(res => res.json());
-  const { data, error } = useSWR('/api/songs', fetcher);
+  const { data, error } = swrSongs();
 
   if (error) return <div>Failed to load songs</div>;
   if (!data) return <div>Loading...</div>;
-  console.log(data)
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-2">Processed Songs</h2>
-      <table className="w-full text-sm border">
-        <thead>
-          <tr>
-            <th className="border p-2">Name</th>
-            <th className="border p-2">Artist</th>
-            <th className="border p-2">Lyrics</th>
-            <th className="border p-2">Classification</th>
-            <th className="border p-2">Accuracy</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((song: any) => (
-            <tr key={song.id}>
-              <td className="border p-2">{song.name}</td>
-              <td className="border p-2">{song.artist}</td>
-              <td className="border p-2 line-clamp-2 max-w-xs">{song.lyrics}</td>
-              <td className="border p-2">{song.classification}</td>
-              <td className="border p-2">{Number(song.accuracy)?.toFixed(2)}</td>
+      <h2 className="text-xl font-bold mb-4">Processed Songs</h2>
+      <div className="overflow-x-auto">
+        <table className="w-full table-auto text-sm border border-gray-600">
+
+
+          <thead>
+            <tr>
+              <th className="border p-2">Title</th>
+              <th className="border p-2">Artist</th>
+              <th className="border p-2">Lyrics</th>
+              <th className="border p-2">Classification</th>
+              <th className="border p-2">Accuracy</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.map((song: any) => (
+              <tr key={song.id}>
+                <td className="border p-2">{song.title || '—'}</td>
+                <td className="border p-2">{song.artist || '—'}</td>
+                <td className="border p-2 text-xs font-mono break-words max-w-[30ch] overflow-hidden text-ellipsis whitespace-nowrap">
+                  {song.lyrics || <span className="italic text-gray-400">No lyrics</span>}
+                </td>
+
+
+                <td className="border p-2">{song.classification || '—'}</td>
+                <td className="border p-2">
+                  {song.accuracy && !isNaN(Number(song.accuracy))
+                    ? Number(song.accuracy).toFixed(2)
+                    : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

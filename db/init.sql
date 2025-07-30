@@ -10,3 +10,7 @@ CREATE TABLE songs (
     stem_name TEXT,                       -- Path to the vocal stem file
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE songs ADD COLUMN fingerprint TEXT;
+ALTER TABLE songs RENAME COLUMN name TO title;
+ALTER TABLE songs ADD COLUMN duration INTEGER;  -- Duration in seconds
+

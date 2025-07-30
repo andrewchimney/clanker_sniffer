@@ -2,15 +2,17 @@
 'use client';
 
 import { useState } from 'react';
+import { mutate } from 'swr';
 
 interface Props {
   onResult: (data: any) => void;
 }
 
+
 export default function UploadForm({ onResult }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [lyrics, setLyrics] = useState('');
-  const [name, setName] = useState('');
+  const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [mode, setMode] = useState('demucs');
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ export default function UploadForm({ onResult }: Props) {
 
     if (file) formData.append('audio', file);
     if (lyrics) formData.append('lyrics', lyrics);
-    formData.append('name', name);
+    formData.append('title', title);
     formData.append('artist', artist);
     formData.append('mode', mode);
 
@@ -38,6 +40,7 @@ export default function UploadForm({ onResult }: Props) {
     } catch (err) {
       alert('Upload failed');
     } finally {
+      mutate('/api/songs', undefined, { revalidate: true });
       setLoading(false);
     }
   };
@@ -54,10 +57,10 @@ export default function UploadForm({ onResult }: Props) {
       <label><input type="radio" name="mode" value="demucs" checked={mode === 'demucs'} onChange={() => setMode('demucs')} /> Isolate Vocals (Demucs)</label>
       <label><input type="radio" name="mode" value="demucs-whisper" checked={mode === 'demucs-whisper'} onChange={() => setMode('demucs-whisper')} /> Transcribe Vocals (Demucs + Whisper)</label>
       <label><input type="radio" name="mode" value="demucs-whisper-classifier" checked={mode === 'demucs-whisper-classifier'} onChange={() => setMode('demucs-whisper-classifier')} /> Detect AI Lyrics from audio (Demucs + Whisper + Classifier)</label>
-      <label><input type="radio" name="mode" value="classifier-text" checked={mode === 'classifier-text'} onChange={() => setMode('classifier-text')} /> Detect AI Lyrics from text (Classifier)</label>
+      <label><input type="radio" name="mode" value="classifier-text" checked={mode === 'classifier'} onChange={() => setMode('classifier-text')} /> Detect AI Lyrics from text (Classifier)</label>
 
-      <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Song title" required />
-      <input type="text" value={artist} onChange={e => setArtist(e.target.value)} placeholder="Artist (optional)" />
+      {/* <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Song title" required />
+      <input type="text" value={artist} onChange={e => setArtist(e.target.value)} placeholder="Artist (optional)" /> */}
 
       {mode !== 'classifier-text' && (
         <input type="file" accept=".wav,.mp3" onChange={e => setFile(e.target.files?.[0] || null)} required />

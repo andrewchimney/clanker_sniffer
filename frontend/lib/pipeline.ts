@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { pool, insertSong } from '@/lib/db';
 
 /**
  * Runs Demucs stem separation on a given audio file.
@@ -72,6 +73,29 @@ export function runClassifier(lyrics: string): Promise<{ classification: string;
     );
   });
 }
+export function runAcousti(fileName: string): Promise<{
+  fingerprint: string;
+  duration: number;
+  matches: {
+    title: string;
+    artist: string;
+  }[];
+}> {
+  return new Promise((resolve, reject) => {
+    exec(
+      `docker exec clanker_acousti python3 /app/acousti_runner.py "${fileName}"`,
+      (error, stdout, stderr) => {
+        if (error) {
+          console.error("❌ Acousti error:", stderr);
+          return reject(stderr);
+        }
+        const parsed = JSON.parse(stdout);
+        resolve(parsed);
+      }
+    );
+  });
+}
+
 
 /**
  * Waits until a file exists (useful for syncing across containers).
@@ -91,4 +115,87 @@ export function waitForFile(filePath: string, timeout = 10000): Promise<void> {
     };
     check();
   });
+}
+
+export async function dPipeline(fileName: string) {
+
+  await waitForFile(path.join('/shared_data', fileName));
+  await runDemucs(fileName);
+  await waitForFile(path.join('/shared_data', "vocal_stems/", fileName));
+  return {
+    title: null,
+    artist: null,
+    duration: null,
+    fingerprint: null,
+    lyrics: null,
+    classification: null,
+    accuracy: null,
+  };
+}
+
+export async function dwPipeline(fileName: string) {
+  await waitForFile(path.join('/shared_data', fileName));
+  await runDemucs(fileName);
+  await waitForFile(path.join('/shared_data', "vocal_stems/", fileName));
+  const whisperOut = await runWhisper(fileName);
+  return {
+    title: null,
+    artist: null,
+    duration: null,
+    fingerprint: null,
+    lyrics: whisperOut.lyrics,
+    classification: null,
+    accuracy: null,
+  };
+}
+
+export async function dwcPipeline(fileName: string) {
+
+  await waitForFile(path.join('/shared_data', fileName));
+
+  const acoustiOut = await runAcousti(fileName);
+  const existing = await pool.query('SELECT * FROM songs WHERE fingerprint = $1', [acoustiOut.fingerprint]);
+
+  if (existing.rows.length > 0) {
+    const fullPath = path.join('/shared_data', fileName);
+    fs.unlinkSync(fullPath);
+
+    return existing.rows[0];
+
+  }
+
+  const match = acoustiOut.matches?.[0] ?? { title: 'unknown', artist: 'unknown' };
+
+  await runDemucs(fileName);
+  await waitForFile(path.join('/shared_data/vocal_stems/', fileName));
+
+  const whisperOut = await runWhisper(fileName);
+  const classifierOut = await runClassifier(whisperOut.lyrics);
+
+  const insertResult = await insertSong({
+    title: match.title,
+    artist: match.artist,
+    duration: acoustiOut.duration,
+    fingerprint: acoustiOut.fingerprint,
+    lyrics: whisperOut.lyrics,
+    classification: classifierOut.classification,
+    accuracy: classifierOut.accuracy,
+    stem_name: fileName,
+  });
+
+  return insertResult;
+}
+
+
+export async function cPipeline(lyrics: string) {
+  const classifierOut = await runClassifier(lyrics);
+  return {
+    title: null,
+    artist: null,
+    duration: null,
+    fingerprint: null,
+    lyrics: lyrics,
+    classification: classifierOut.classification,
+    accuracy: classifierOut.accuracy,
+  };
 }
