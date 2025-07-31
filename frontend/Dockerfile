@@ -7,7 +7,7 @@ COPY package*.json ./
 RUN npm install pg
 RUN npm install swr
 RUN apt-get update && apt-get install -y ffmpeg
-
+RUN apt install -y docker.io
 RUN npm install
 #COPY .env .env
 

@@ -25,7 +25,7 @@ services:
     ports:
       - "3000:3000"
     working_dir: /app
-    command: sh -c "apt-get update && apt-get install -y docker.io && npm run build && npm run start"
+    command: sh -c "npm run dev"
     volumes:
       - ./frontend:/app
       - ./shared_data:/shared_data
@@ -40,7 +40,7 @@ services:
     command: tail -f /dev/null
     depends_on:
       - frontend
-    restart: on-failure`
+    restart: on-failure
     volumes:
       - ./demucs-api:/app
       - ./shared_data:/shared_data

@@ -4,12 +4,21 @@ import useSWR from 'swr';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
-export function swrSongs() {
+export function useSWRSongs() {
   return useSWR('/api/songs', fetcher, { refreshInterval: 5000 });
 }
 
+type Song = {
+  id: string | number;
+  title?: string;
+  artist?: string;
+  lyrics?: string;
+  classification?: string;
+  accuracy?: number | string;
+}
+
 export default function ProcessedSongs() {
-  const { data, error } = swrSongs();
+  const { data, error } = useSWRSongs();
 
   if (error) return <div>Failed to load songs</div>;
   if (!data) return <div>Loading...</div>;
@@ -31,7 +40,8 @@ export default function ProcessedSongs() {
             </tr>
           </thead>
           <tbody>
-            {data.map((song: any) => (
+            
+            {data.map((song: Song) => (
               <tr key={song.id}>
                 <td className="border p-2">{song.title || '—'}</td>
                 <td className="border p-2">{song.artist || '—'}</td>

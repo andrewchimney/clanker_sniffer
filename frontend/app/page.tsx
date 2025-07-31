@@ -5,7 +5,6 @@ import UploadForm from '@/components/UploadForm';
 import ProcessedSongs from '@/components/ProcessedSongs';
 import Queue from '@/components/Queue';
 import { useState } from 'react';
-import { mutate } from 'swr';
 
 export default function HomePage() {
   const [results, setResults] = useState<any | null>(null);

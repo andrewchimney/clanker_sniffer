@@ -8,8 +8,7 @@
 //   - Orchestrates the above 3 services
 //   - Stores result in Postgres
 import { exec } from 'child_process';
-import { pool } from '@/lib/db';
-import { runDemucs, runWhisper, runClassifier, waitForFile, dPipeline, dwPipeline, dwcPipeline, cPipeline, runAcousti } from '@/lib/pipeline';
+import { dPipeline, dwPipeline, dwcPipeline, cPipeline } from '@/lib/pipeline';
 
 import { NextRequest } from 'next/server';
 import fs from 'fs';
@@ -36,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   if (!audioFile) return new Response(JSON.stringify({ error: 'No file uploaded', status: 400 }));
 
-  let fileName = `${Date.now()}_${audioFile.name.replace(/[:\s]/g, "_")}`;
+  const fileName = `${Date.now()}_${audioFile.name.replace(/[:\s]/g, "_")}`;
   const sharedPath = '/shared_data';
   fs.mkdirSync(sharedPath, { recursive: true });
 
@@ -56,7 +55,7 @@ export async function POST(req: NextRequest) {
     finalFileName = fileName.replace(/\.[^/.]+$/, '.wav');
     finalPath = path.join(sharedPath, finalFileName);
 
-    
+
     try {
       const execAsync = promisify(exec);
       //await execAsync(`ffmpeg -y -i "${tempPath}" -ar 44100 -ac 2 "${finalPath}"`);
