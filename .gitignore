@@ -41,3 +41,6 @@ logs/
 
 .venv
 venv
+*.wav
+*.mp3*.wav
+*.wav
