@@ -1,15 +1,24 @@
+from fastapi import FastAPI, HTTPException, Body
+from pydantic import BaseModel
 import sys
-import os
-from datetime import datetime
 import json
 
-if __name__ == "__main__":
-    lyrics = sys.argv[1]
-    
-    print(f"📥 Receivedasdsa: {lyrics}", file=sys.stderr)
+app = FastAPI()
 
-    # Simulate transcript
+class LyricsInput(BaseModel):
+    lyrics: str
+
+@app.post("/classify")
+def classify(input: LyricsInput):
+    print("🟥 [Classifier] running inference...")
+    lyrics = input.lyrics
+    #print(f"📥 Received: {lyrics}", file=sys.stderr)
+
+    # Simulated classification result
     classification = "AI"
-    accuracy = .9324
-    print(json.dumps({"classification": classification, "accuracy": accuracy}))
+    accuracy = 0.9324
 
+    return {
+        "classification": classification,
+        "accuracy": accuracy
+    }

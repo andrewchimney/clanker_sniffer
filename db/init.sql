@@ -14,3 +14,10 @@ ALTER TABLE songs ADD COLUMN fingerprint TEXT;
 ALTER TABLE songs RENAME COLUMN name TO title;
 ALTER TABLE songs ADD COLUMN duration INTEGER;  -- Duration in seconds
 
+ALTER TABLE songs ADD COLUMN fingerprint_hash TEXT;
+UPDATE songs SET fingerprint_hash = md5(fingerprint);
+
+ALTER TABLE songs ADD CONSTRAINT unique_fingerprint_hash UNIQUE(fingerprint_hash);
+
+
+

@@ -44,3 +44,5 @@ venv
 *.wav
 *.mp3*.wav
 *.wav
+
+__pycache__

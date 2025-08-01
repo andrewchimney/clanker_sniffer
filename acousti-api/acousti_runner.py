@@ -1,19 +1,30 @@
-import sys
-import subprocess
-import json
-import requests
+# acoustid-api/main.py
 import os
+import subprocess
+from fastapi import FastAPI, UploadFile, Form, File
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+import requests
+import shutil
+from pathlib import Path
 
-def run_fpcalc(file_name):
-    file_path = f"/shared_data/{file_name}"
+app = FastAPI()
+
+# Optional: Allow frontend calls during local dev
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def run_fpcalc(file_path):
     result = subprocess.run(["fpcalc", file_path], capture_output=True, text=True)
-    # Only fail if no fingerprint or duration could be parsed
-    if "FINGERPRINT=" not in result.stdout or "DURATION=" not in result.stdout:
-        print("Error: Failed to generate fingerprint", file=sys.stderr)
-        print("stderr:", result.stderr, file=sys.stderr)
-        sys.exit(1)
 
-    
+    if "FINGERPRINT=" not in result.stdout or "DURATION=" not in result.stdout:
+        raise RuntimeError(f"fpcalc failed: {result.stderr}")
+
     fingerprint = None
     duration = None
 
@@ -24,10 +35,10 @@ def run_fpcalc(file_name):
             duration = int(float(line.split("=", 1)[1]))
 
     if not fingerprint or not duration:
-        print("Failed to extract fingerprint or duration", file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError("Missing fingerprint or duration")
 
     return fingerprint, duration
+
 
 def lookup_acoustid(fingerprint, duration, api_key):
     url = "https://api.acoustid.org/v2/lookup"
@@ -41,44 +52,83 @@ def lookup_acoustid(fingerprint, duration, api_key):
 
     response = requests.post(url, data=payload)
     if response.status_code != 200:
-        print("AcoustID API error:", response.text, file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError(f"AcoustID error: {response.text}")
 
     return response.json()
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python acousti_runner.py <audio_filename.wav>", file=sys.stderr)
-        sys.exit(1)
+@app.post("/convert")
+async def convert_audio(file: UploadFile = File(...)):
+    print("🟦 [Acousti] converting...")
+    #print("📥 Received file:", file.filename)
+    input_path = f"/shared_data/tmp_{file.filename}"
+    output_path = f"/shared_data/{file.filename}.wav"
 
-    api_key = os.getenv("ACOUSTID_API_KEY")
-    if not api_key:
-        print("Missing ACOUSTID_API_KEY environment variable", file=sys.stderr)
-        sys.exit(1)
+    with open(input_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
 
-    file_name = sys.argv[1]
-    fingerprint, duration = run_fpcalc(file_name)
-    result = lookup_acoustid(fingerprint, duration, api_key)
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", input_path,
+                "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2",
+                output_path
+            ],
+            check=True,
+            capture_output=True,
+            text=True
+        )
 
-    output = {
-        "fingerprint": fingerprint,
-        "duration": duration,
-        "matches": []
-    }
+        #print("✅ FFmpeg succeeded")
+        #print("📄 FFmpeg stdout:\n", result.stdout)
+        #print("⚠️ FFmpeg stderr:\n", result.stderr)
 
-    for result_entry in result.get("results", []):
-        for recording in result_entry.get("recordings", []):
-            title = recording.get("title", "Unknown")
-            artist = "Unknown"
-            if recording.get("artists"):
-                artist = recording["artists"][0].get("name", "Unknown")
-            output["matches"].append({
-                "title": title,
-                "artist": artist
-            })
+        os.remove(input_path)
+        return JSONResponse({"filename": os.path.basename(output_path)})
 
-    print(json.dumps(output, indent=2))
-    if not output["matches"]:
-        print("No match found. Raw API response:", file=sys.stderr)
-        print(json.dumps(result, indent=2), file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        print("❌ FFmpeg failed")
+        print("📄 FFmpeg stdout:\n", e.stdout)
+        print("⚠️ FFmpeg stderr:\n", e.stderr)
+        return JSONResponse(
+            {
+                "converted": False,
+                "error": "FFmpeg failed",
+                "stdout": e.stdout,
+                "stderr": e.stderr
+            },
+            status_code=500
+        )
 
+
+@app.post("/identify")
+async def identify(file: UploadFile, filename: str = Form(...)):
+    try:
+        print("🟦 [Acousti] identifying...")
+        audio_path = f"/shared_data/{filename}"
+        with open(audio_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        api_key = os.getenv("ACOUSTID_API_KEY")
+        if not api_key:
+            raise RuntimeError("Missing ACOUSTID_API_KEY env var")
+
+        fingerprint, duration = run_fpcalc(audio_path)
+        raw_result = lookup_acoustid(fingerprint, duration, api_key)
+
+        matches = []
+        for result in raw_result.get("results", []):
+            for recording in result.get("recordings", []):
+                title = recording.get("title", "Unknown")
+                artist = "Unknown"
+                if recording.get("artists"):
+                    artist = recording["artists"][0].get("name", "Unknown")
+                matches.append({"title": title, "artist": artist})
+        print("matches acousti", matches)
+        return JSONResponse({
+            "fingerprint": fingerprint,
+            "duration": duration,
+            "matches": matches,
+        })
+
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)

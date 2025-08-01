@@ -1,24 +1,30 @@
-import sys
-import os
-import json
+from fastapi import FastAPI, HTTPException, Query
 from faster_whisper import WhisperModel
+import os
+import sys
+import json
+import traceback
 
-if __name__ == "__main__":
-    stem_name = sys.argv[1]
-    input_path = f"/shared_data/vocal_stems/{stem_name}"
+app = FastAPI()
+model = WhisperModel("base", device="cpu", compute_type="int8")
 
-    print(f"📥 Received: {input_path}", file=sys.stderr)
+VOCAL_DIR = "/shared_data/vocal_stems"
+
+@app.get("/transcribe")
+def transcribe(stem_name: str = Query(..., description="Filename of stem to transcribe")):
+    print("🟨 [Whisper] transcribing vocals...")
+    input_path = os.path.join(VOCAL_DIR, stem_name)
+    #print(f"📥 Received: {input_path}", file=sys.stderr)
 
     if not os.path.exists(input_path):
-        print("❌ File not found", file=sys.stderr)
-        sys.exit(1)
+        raise HTTPException(status_code=404, detail="File not found")
 
-    # Load model (you can use 'tiny', 'base', 'small', 'medium', 'large')
-    model = WhisperModel("base", device="cpu", compute_type="int8")  # or "float32" if needed
+    try:
+        segments, info = model.transcribe(input_path, beam_size=5)
+        transcript = " ".join(segment.text.strip() for segment in segments)
 
-    segments, info = model.transcribe(input_path, beam_size=5)
-
-    transcript = " ".join(segment.text.strip() for segment in segments)
-
-    print(f"📝 Transcription: {transcript}", file=sys.stderr)
-    print(json.dumps({"lyrics": transcript}))
+        #print(f"📝 Transcription: {transcript}", file=sys.stderr)
+        return {"lyrics": transcript}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")

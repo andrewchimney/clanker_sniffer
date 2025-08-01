@@ -31,7 +31,7 @@ export default function UploadForm({ onResult }: Props) {
     formData.append('mode', mode);
 
     try {
-      const res = await fetch('/api/analyze', {
+      const res = await fetch('http://localhost:8005/api/analyze', {
         method: 'POST',
         body: formData,
       });
@@ -40,7 +40,7 @@ export default function UploadForm({ onResult }: Props) {
     } catch (err) {
       alert('Upload failed');
     } finally {
-      mutate('/api/songs', undefined, { revalidate: true });
+      mutate('http://localhost:8005/api/songs', undefined, { revalidate: true });
       setLoading(false);
     }
   };

@@ -1,19 +1,23 @@
-# frontend/Dockerfile
 FROM node:20
 
+# Set working directory
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install pg
-RUN npm install swr
-RUN apt-get update && apt-get install -y ffmpeg
-RUN apt install -y docker.io
-RUN npm install
-#COPY .env .env
+# Install OS dependencies (Docker socket mount already lets you call docker)
 
+
+# Copy only package metadata and install deps (better cache layer)
+COPY package*.json ./
+
+# Install all dependencies at once — includes pg, swr, axios, form-data, etc.
+RUN npm install
+
+
+# Now copy your source code
 COPY . .
 
+# Expose frontend port
 EXPOSE 3000
 
+# Run dev server
 CMD ["npm", "run", "dev"]
-# For production, use: CMD ["npm", "run", "build"] then ["npm", "start"]

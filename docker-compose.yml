@@ -16,6 +16,7 @@ services:
   frontend:
     build: ./frontend
     container_name: clanker_frontend
+    #platform: linux/arm64  # if you're on M1/M2
     depends_on:
       - db
     restart: on-failure
@@ -30,14 +31,13 @@ services:
       - ./frontend:/app
       - ./shared_data:/shared_data
       - /app/node_modules
-      - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - ./.env
 
   demucs_api:
     build: ./demucs-api
     container_name: clanker_demucs
-    command: tail -f /dev/null
+    #command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -49,7 +49,7 @@ services:
   whisper_api:
     build: ./whisper-api
     container_name: clanker_whisper
-    command: tail -f /dev/null
+    #command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -63,7 +63,7 @@ services:
   classifier_api:
     build: ./classifier-api
     container_name: clanker_classifier
-    command: tail -f /dev/null
+    #command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -71,20 +71,38 @@ services:
       - ./classifier-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
-
   acousti_api:
     build: ./acousti-api
     container_name: clanker_acousti
-    command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
+    ports:
+      - "5003:5003"
     volumes:
       - ./acousti-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
     env_file:
       - ./.env
+  orchestrator_api:
+    build: ./orchestrator-api
+    container_name: clanker_orchestrator
+    depends_on:
+      - demucs_api
+      - whisper_api
+      - classifier_api
+      - acousti_api
+      - db
+    volumes:
+      - ./orchestrator-api:/app
+      - ./shared_data:/shared_data
+    ports:
+      - "8005:8005"
+    working_dir: /app
+    env_file:
+      - ./.env
+
 
 volumes:
   pgdata: #shared_data:

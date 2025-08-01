@@ -1,112 +1,50 @@
-// - **POST /api/analyze**
-
-//   - Accepts: `.mp3` and flags to control pipeline steps
-//   - Optional flags:
-//     - `run_demucs`: bool
-//     - `run_whisper`: bool
-//     - `run_classifier`: bool
-//   - Orchestrates the above 3 services
-//   - Stores result in Postgres
-import { exec } from 'child_process';
-import { dPipeline, dwPipeline, dwcPipeline, cPipeline } from '@/lib/pipeline';
-
-import { NextRequest } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import { promisify } from 'util';
+// // - **POST /api/analyze**
 
 
-export async function POST(req: NextRequest) {
+// import { NextRequest } from 'next/server';
+// import axios from 'axios';
+// import FormData from 'form-data';
 
 
-  const formData = await req.formData();
-  const audioFile = formData.get('audio') as File;
-  const mode = formData.get("mode");
-  const title = formData.get('title');
-  const artist = formData.get('artist');
-  const lyricsData = formData.get('lyrics');
-  let lyrics = "";
-  if (typeof lyricsData === 'string') {
-    lyrics = lyricsData;
-  }
-  
+// export async function POST(req: NextRequest) {
+//   try {
 
+//     const formData = await req.formData();
+//     const audioFile = formData.get('audio') as File;
+//     const mode = formData.get("mode");
+//     const title = formData.get('title');
+//     const artist = formData.get('artist');
+//     const lyricsData = formData.get('lyrics');
+//     let lyrics = "";
+//     if (typeof lyricsData === 'string') {
+//       lyrics = lyricsData;
+//     }
 
+//     if (!audioFile) return new Response(JSON.stringify({ error: 'No file uploaded', status: 400 }));
 
-  if (!audioFile) return new Response(JSON.stringify({ error: 'No file uploaded', status: 400 }));
+//     const fileBuffer = Buffer.from(await audioFile.arrayBuffer());
+//     const form = new FormData();
+//     form.append('audio', fileBuffer, audioFile.name);
+//     form.append('mode', mode);
+//     if (title) form.append('title', title);
+//     if (artist) form.append('artist', artist);
+//     if (lyrics) form.append('lyrics', lyrics);
 
-  const fileName = `${Date.now()}_${audioFile.name.replace(/[:\s]/g, "_")}`;
-  const sharedPath = '/shared_data';
-  fs.mkdirSync(sharedPath, { recursive: true });
+//     const response = await axios.post('http://clanker_orchestrator:8005/analyze', form, {
+//       headers: form.getHeaders(),
+//       maxContentLength: Infinity,
+//       maxBodyLength: Infinity,
+//     });
 
-  let finalFileName: string;
-  let finalPath: string;
-
-  if (fileName.toLowerCase().endsWith('.wav')) {
-    // Already WAV — just save it directly
-    finalFileName = fileName;
-    finalPath = path.join(sharedPath, finalFileName);
-    fs.writeFileSync(finalPath, Buffer.from(await audioFile.arrayBuffer()));
-  } else {
-    // Save temp MP3 and convert
-    const tempPath = path.join(sharedPath, fileName);
-    fs.writeFileSync(tempPath, Buffer.from(await audioFile.arrayBuffer()));
-
-    finalFileName = fileName.replace(/\.[^/.]+$/, '.wav');
-    finalPath = path.join(sharedPath, finalFileName);
-
-
-    try {
-      const execAsync = promisify(exec);
-      //await execAsync(`ffmpeg -y -i "${tempPath}" -ar 44100 -ac 2 "${finalPath}"`);
-      await execAsync(`ffmpeg -y -i "${tempPath}" -acodec pcm_s16le -ar 44100 -ac 2 "${finalPath}"`);
-
-      
-      fs.unlinkSync(tempPath); // 🗑️ Remove temp MP3
-      console.log(`✅ Converted and saved: ${finalFileName}`);
-    } catch (err) {
-      console.error("❌ Conversion failed:", err);
-      return new Response(JSON.stringify({ error: 'Audio conversion failed' }), { status: 500 });
-    }
-  }
-
-
-
-
-
-  try {
-    let out;
-
-    switch (mode) {
-      case 'demucs':
-        out = await dPipeline(finalFileName);
-        break;
-      case 'demucs-whisper':
-        out = await dwPipeline(finalFileName);
-        break;
-      case 'demucs-whisper-classifier':
-        out = await dwcPipeline(finalFileName);
-        break;
-      case 'classifier-text':
-        out = await cPipeline(lyrics);
-        break;
-      default:
-        throw new Error(`Invalid mode: ${mode}`);
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-  } catch (err) {
-    return new Response(JSON.stringify({ success: false, error: String(err) }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
+//     return new Response(JSON.stringify(response.data), {
+//       status: 200,
+//       headers: { 'Content-Type': 'application/json' },
+//     });
+//   } catch (err: any) {
+//     console.error("❌ Error calling orchestrator:", err);
+//     return new Response(
+//       JSON.stringify({ error: 'Failed to reach orchestrator', details: err.message }),
+//       { status: 500, headers: { 'Content-Type': 'application/json' } }
+//     );
+//   }
+// }

@@ -13,4 +13,6 @@ RUN apt-get update && apt-get install -y gcc libpq-dev
 
 COPY . .
 
-CMD ["python", "whisper_runner.py"]
+EXPOSE 8001
+
+CMD ["python", "-m", "uvicorn", "whisper_runner:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]

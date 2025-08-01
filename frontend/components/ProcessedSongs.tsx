@@ -5,7 +5,7 @@ import useSWR from 'swr';
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export function useSWRSongs() {
-  return useSWR('/api/songs', fetcher, { refreshInterval: 5000 });
+  return useSWR('http://localhost:8005/api/songs', fetcher, { refreshInterval: 5000 });
 }
 
 type Song = {

@@ -7,6 +7,7 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y ffmpeg libchromaprint-tools gcc libpq-dev && \
     rm -rf /var/lib/apt/lists/*
+    
 
 
 
@@ -20,5 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY . .
 
+EXPOSE 8004
+
 # Run your fingerprint processor
-CMD ["python", "acousti_runner.py"]
+CMD ["uvicorn", "acousti_runner:app", "--host", "0.0.0.0", "--port", "8004", "--reload"]
