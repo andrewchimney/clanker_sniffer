@@ -123,7 +123,7 @@ async def identify(file: UploadFile, filename: str = Form(...)):
                 if recording.get("artists"):
                     artist = recording["artists"][0].get("name", "Unknown")
                 matches.append({"title": title, "artist": artist})
-        print("matches acousti", matches)
+        #print("matches acousti", matches)
         return JSONResponse({
             "fingerprint": fingerprint,
             "duration": duration,

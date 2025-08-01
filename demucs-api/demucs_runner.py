@@ -31,7 +31,7 @@ def separate_vocals(input_path: str, output_path: str):
 
 @app.post("/separate")
 async def separate(file: UploadFile = File(...)):
-    print("🟩 [Demucs] separating stems...")
+    print("🟪 [Demucs] separating stems...")
     file_name = file.filename
     input_path = Path(f"/shared_data/{file_name}")
     output_path = OUTPUT_DIR / file_name

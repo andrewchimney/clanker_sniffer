@@ -1,34 +1,79 @@
-// components/UploadForm.tsx
 'use client';
-
+import SongModal from './SongModal';
 import { useState } from 'react';
 import { mutate } from 'swr';
-
-interface Props {
-  onResult: (data: any) => void;
+import { useEffect } from 'react';
+function cn(...inputs: (string | boolean | null | undefined)[]): string {
+  return inputs.filter(Boolean).join(' ');
 }
 
 
-export default function UploadForm({ onResult }: Props) {
+const steps = [
+  { key: 'audio', label: '→ 🎧 Audio' },
+  { key: 'identify', label: '→ 🧠 Song Info' },
+  { key: 'stems', label: '→ 🎛 Stems' },
+  { key: 'lyrics', label: '→ 📝 Lyrics' },
+  { key: 'classification', label: '→ 🤖 Classification' },
+];
+
+export default function UploadForm({ onResult }: { onResult: (data: any) => void }) {
+
+  interface SongResult {
+    title: string;
+    artist: string;
+    fingerprint: string;
+    duration: number;
+    lyrics: string;
+    classification: string;
+    accuracy: number;
+  }
+
+  const [start, setStart] = useState<'audio' | 'text' | 'search'>('audio');
+  const [end, setEnd] = useState('audio');
   const [file, setFile] = useState<File | null>(null);
   const [lyrics, setLyrics] = useState('');
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
-  const [mode, setMode] = useState('demucs');
   const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [songData, setSongData] = useState<SongResult | null>(null);
+
+
+  const startIndex = start === 'text'
+    ? steps.findIndex(s => s.key === 'lyrics')
+    : start === 'search'
+      ? steps.findIndex(s => s.key === 'identify')
+      : 0;
+
+  const validEndSteps = steps.filter((_, idx) => idx > startIndex);
+
+  useEffect(() => {
+    if (!validEndSteps.find(s => s.key === end)) {
+      setEnd(validEndSteps[0]?.key || steps[startIndex].key);
+    }
+  }, [start]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((mode !== 'classifier-text' && !file) || (mode === 'classifier-text' && !lyrics)) return alert('Missing input');
+    if (start === 'audio' && !file) return alert('Missing audio file');
+    if (start === 'text' && !lyrics) return alert('Missing lyrics');
 
     setLoading(true);
     const formData = new FormData();
 
-    if (file) formData.append('audio', file);
-    if (lyrics) formData.append('lyrics', lyrics);
+    if (start === 'audio' && file) formData.append('audio', file);
+    if (start === 'text') formData.append('lyrics', lyrics);
+
     formData.append('title', title);
     formData.append('artist', artist);
-    formData.append('mode', mode);
+    formData.append('input_type', start);
+    formData.append('output', end);
+
+    // Build outputs list based on steps between start and end
+    const fromIdx = steps.findIndex(s => s.key === (start === 'text' ? 'lyrics' : start === 'search' ? 'identify' : 'audio'));
+    const toIdx = steps.findIndex(s => s.key === end);
+    const outputs = steps.slice(fromIdx + 1, toIdx + 1).map(s => s.key);
+    outputs.forEach(service => formData.append('outputs', service));
 
     try {
       const res = await fetch('http://localhost:8005/api/analyze', {
@@ -37,40 +82,111 @@ export default function UploadForm({ onResult }: Props) {
       });
       const data = await res.json();
       onResult(data);
+      setSongData(data.result);
+      setModalOpen(true);
     } catch (err) {
       alert('Upload failed');
     } finally {
-      mutate('http://localhost:8005/api/songs', undefined, { revalidate: true });
+      mutate('http://localhost:8005/api/songs');
       setLoading(false);
     }
   };
 
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <h2 className="text-xl font-bold">Clanker Sniffer 🎧</h2>
+    <>
+      <SongModal isOpen={modalOpen} onClose={() => setModalOpen(false)} result={songData} />
 
-      {/* <div className="flex gap-2">
-        <button type="button" className={mode.startsWith('demucs') ? 'font-bold' : ''} onClick={() => setMode('demucs')}>🔊 Upload Audio</button>
-        <button type="button" className={mode === 'classifier-text' ? 'font-bold' : ''} onClick={() => setMode('classifier-text')}>📝 Paste Lyrics</button>
-      </div> */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <h2 className="text-xl font-bold">Clanker Sniffer 🎧</h2>
 
-      <label><input type="radio" name="mode" value="demucs" checked={mode === 'demucs'} onChange={() => setMode('demucs')} /> Isolate Vocals (Demucs)</label>
-      <label><input type="radio" name="mode" value="demucs-whisper" checked={mode === 'demucs-whisper'} onChange={() => setMode('demucs-whisper')} /> Transcribe Vocals (Demucs + Whisper)</label>
-      <label><input type="radio" name="mode" value="demucs-whisper-classifier" checked={mode === 'demucs-whisper-classifier'} onChange={() => setMode('demucs-whisper-classifier')} /> Detect AI Lyrics from audio (Demucs + Whisper + Classifier)</label>
-      <label><input type="radio" name="mode" value="classifier-text" checked={mode === 'classifier'} onChange={() => setMode('classifier-text')} /> Detect AI Lyrics from text (Classifier)</label>
+        <div className="flex items-center gap-6 overflow-x-auto">
+          <div className="flex gap-4 items-center">
+            <label className="font-medium">Select Input:</label>
+            <select
+              value={start}
+              onChange={e => setStart(e.target.value as typeof start)}
+              className="border rounded px-2 py-1 bg-black text-white"
+            >
+              <option value="audio">🎧 Upload Audio</option>
+              <option value="text">📝 Paste Lyrics</option>
+              <option value="search">🔍 Song Info (DB)</option>
+            </select>
+          </div>
 
-      {/* <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Song title" required />
-      <input type="text" value={artist} onChange={e => setArtist(e.target.value)} placeholder="Artist (optional)" /> */}
+          <div className="flex gap-4 items-center">
+            <label className="font-medium">Select Output:</label>
+            <select
+              value={end}
+              onChange={e => setEnd(e.target.value)}
+              className="border rounded px-2 py-1 bg-black text-white"
+            >
+              {validEndSteps.map(step => (
+                <option key={step.key} value={step.key}>{step.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-      {mode !== 'classifier-text' && (
-        <input type="file" accept=".wav,.mp3" onChange={e => setFile(e.target.files?.[0] || null)} required />
-      )}
+        <div className="flex items-center gap-2 overflow-x-auto">
+          {steps.map((step, index) => (
+            <div
+              key={step.key}
+              className={cn(
+                'rounded-full border px-4 py-1 whitespace-nowrap flex items-center',
+                index >= startIndex && index <= steps.findIndex(s => s.key === end)
+                  ? 'bg-white text-black'
+                  : 'bg-transparent text-white border-white',
+                index > 0 && 'relative before:content-[""] before:mr-2 before:text-white'
+              )}
+            >
+              {step.label}
+            </div>
+          ))}
+        </div>
 
-      {mode === 'classifier-text' && (
-        <textarea value={lyrics} onChange={e => setLyrics(e.target.value)} placeholder="Paste lyrics here..." className="min-h-[100px]" required />
-      )}
+        {
+          start === 'audio' && (
+            <input type="file" accept=".wav,.mp3" onChange={e => setFile(e.target.files?.[0] || null)} required />
+          )
+        }
 
-      <button type="submit" disabled={loading}>{loading ? 'Analyzing...' : 'Submit 🚀'}</button>
-    </form>
+        {
+          start === 'text' && (
+            <textarea
+              value={lyrics}
+              onChange={e => setLyrics(e.target.value)}
+              placeholder="Paste lyrics here..."
+              className="min-h-[100px]"
+              required
+            />
+          )
+        }
+
+        {
+          (start === 'audio' || start === 'text') && (
+            <>
+              <input
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="Song Title (optional)"
+                className="border p-2 bg-black text-white"
+              />
+              <input
+                value={artist}
+                onChange={e => setArtist(e.target.value)}
+                placeholder="Artist (optional)"
+                className="border p-2 bg-black text-white"
+              />
+            </>
+          )
+        }
+
+        <button type="submit" disabled={loading} className="bg-white text-black px-4 py-2 rounded">
+          {loading ? 'Analyzing...' : 'Submit 🚀'}
+        </button>
+      </form >
+    </>
   );
+
 }
