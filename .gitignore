@@ -46,3 +46,27 @@ venv
 *.wav
 
 __pycache__
+
+*.csv
+terraform.tfstate
+terraform.tfvars
+# Ignore Terraform state files
+*.tfstate
+*.tfstate.*
+
+# Ignore crash logs
+crash.log
+
+# Ignore Terraform plan files
+*.tfplan
+
+# Ignore Terraform backup files
+*.backup
+
+# Ignore Terraform variable files
+*.tfvars
+
+# Ignore local .terraform directories (contains downloaded providers, plugins)
+.terraform/
+terraform/
+*.zip

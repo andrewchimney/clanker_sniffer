@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY . .
 
-EXPOSE 8005
+EXPOSE 8000
 
 # Run your fingerprint processor
-CMD ["uvicorn", "orchestrator_runner:app", "--host", "0.0.0.0", "--port", "8005", "--reload"]
+CMD ["uvicorn", "orchestrator_runner:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

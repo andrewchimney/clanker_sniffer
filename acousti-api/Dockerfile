@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY . .
 
-EXPOSE 8004
+EXPOSE 8000
 
 # Run your fingerprint processor
-CMD ["uvicorn", "acousti_runner:app", "--host", "0.0.0.0", "--port", "8004", "--reload"]
+CMD ["uvicorn", "acousti_runner:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -20,14 +20,14 @@ def run_demucs(file_name: str):
 
 
 def run_whisper(file_name: str):
-    response = requests.get("http://clanker_whisper:8001/transcribe", params={"stem_name": file_name})
+    response = requests.get("http://clanker_whisper:8000/transcribe", params={"stem_name": file_name})
     if response.status_code != 200:
         raise Exception("Whisper failed")
     return response.json()
 
 
 def run_classifier(lyrics: str):
-    response = requests.post("http://clanker_classifier:8002/classify", json={"lyrics": lyrics})
+    response = requests.post("http://clanker_classifier:8000/classify", json={"lyrics": lyrics})
     if response.status_code != 200:
         raise Exception("Classifier failed")
     return response.json()
@@ -40,7 +40,7 @@ def run_acousti(file_name: str):
             "file": (file_name, f),
             "filename": (None, file_name)
         }
-        response = requests.post("http://clanker_acousti:8004/identify", files=files)
+        response = requests.post("http://clanker_acousti:8000/identify", files=files)
 
     if response.status_code != 200:
         raise Exception("Acoustic fingerprinting failed")
@@ -66,7 +66,7 @@ def preprocess(file_name: str) -> str:
     with open(input_path, "rb") as f:
         files = {'file': (file_name, f)}
         try:
-            response = requests.post("http://clanker_acousti:8004/convert", files=files)
+            response = requests.post("http://clanker_acousti:8000/convert", files=files)
         except requests.RequestException as e:
             raise Exception(f"Failed to connect to Acousti /convert: {e}")
 

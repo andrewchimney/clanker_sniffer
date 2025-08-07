@@ -7,7 +7,7 @@ import SongModal from './SongModal';
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export function useSWRSongs() {
-  return useSWR('http://localhost:8005/api/songs', fetcher, { refreshInterval: 5000 });
+  return useSWR('/api/songs', fetcher, { refreshInterval: 5000 });
 }
 
 type Song = {

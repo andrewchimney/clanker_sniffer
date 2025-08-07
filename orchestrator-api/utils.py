@@ -3,6 +3,7 @@ import uuid
 import hashlib
 import shutil
 from fastapi import UploadFile
+from db import lifespan, insert_song, get_song_by_fingerprint_hash, get_song_by_title_artist
 
 # Shared paths
 SHARED_PATH = "/shared_data"
@@ -29,3 +30,4 @@ def save_uploaded_file(upload_file: UploadFile) -> str:
         shutil.copyfileobj(upload_file.file, f)
 
     return filename
+

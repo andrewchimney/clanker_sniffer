@@ -13,6 +13,7 @@ services:
     ports:
       - "5432:5432"
 
+
   frontend:
     build: ./frontend
     container_name: clanker_frontend
@@ -37,7 +38,6 @@ services:
   demucs_api:
     build: ./demucs-api
     container_name: clanker_demucs
-    #command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -45,11 +45,13 @@ services:
       - ./demucs-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
+    expose:
+      - "8000"
+
 
   whisper_api:
     build: ./whisper-api
     container_name: clanker_whisper
-    #command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -59,11 +61,13 @@ services:
     working_dir: /app
     env_file:
       - ./.env
+    expose:
+      - "8000"
+
 
   classifier_api:
     build: ./classifier-api
     container_name: clanker_classifier
-    #command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -71,14 +75,15 @@ services:
       - ./classifier-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
+    expose:
+      - "8000"
+
   acousti_api:
     build: ./acousti-api
     container_name: clanker_acousti
     depends_on:
       - frontend
     restart: on-failure
-    ports:
-      - "5003:5003"
     volumes:
       - ./acousti-api:/app
       - ./shared_data:/shared_data
@@ -97,12 +102,14 @@ services:
     volumes:
       - ./orchestrator-api:/app
       - ./shared_data:/shared_data
-    ports:
-      - "8005:8005"
     working_dir: /app
     env_file:
       - ./.env
+    expose:
+      - "8000"
+
+
 
 
 volumes:
-  pgdata: #shared_data:
+  pgdata:

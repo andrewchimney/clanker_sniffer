@@ -19,5 +19,19 @@ UPDATE songs SET fingerprint_hash = md5(fingerprint);
 
 ALTER TABLE songs ADD CONSTRAINT unique_fingerprint_hash UNIQUE(fingerprint_hash);
 
+ALTER TABLE songs ADD COLUMN audio_processed BOOLEAN DEFAULT FALSE
 
+CREATE TABLE job_queue (
+    id SERIAL PRIMARY KEY,
+    status TEXT DEFAULT 'pending',  -- pending | processing | done | failed
+    input_type TEXT NOT NULL,
+    title TEXT,
+    artist TEXT,
+    file_name TEXT,
+    lyrics TEXT,
+    flags JSONB NOT NULL,
+    result JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
 

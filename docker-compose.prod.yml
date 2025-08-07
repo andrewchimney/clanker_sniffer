@@ -87,4 +87,4 @@ services:
       - ./.env
 
 volumes:
-  pgdata: #shared_data:
+  pgdata:

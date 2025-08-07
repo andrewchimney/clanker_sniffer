@@ -1,19 +1,54 @@
-from fastapi import FastAPI, UploadFile, Form, File
-import os
-from fastapi.concurrency import run_in_threadpool
-import sys
-from contextlib import asynccontextmanager
-from fastapi import Request
+from fastapi import FastAPI, UploadFile, Form, File, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
-from typing import List
-from db import lifespan, insert_song, get_song_by_fingerprint_hash
+from fastapi.concurrency import run_in_threadpool
+import os
+from contextlib import asynccontextmanager
+from typing import List, Optional
+import asyncio
+import asyncpg
 from services import (
-    run_demucs, run_whisper, run_classifier, run_acousti,
-    wait_for_file, preprocess
+    run_demucs, 
+    run_whisper, 
+    run_classifier, 
+    run_acousti,
+    wait_for_file, 
+    preprocess
 )
-from utils import SHARED_PATH, VOCAL_STEMS_PATH, FRONTEND_ORIGIN, save_uploaded_file, compute_fingerprint_hash
+from utils import (
+    SHARED_PATH, 
+    VOCAL_STEMS_PATH, 
+    FRONTEND_ORIGIN, 
+    save_uploaded_file, 
+    compute_fingerprint_hash
+)
+from db import (
+    lifespan,
+    get_and_claim_job,
+    mark_job_done,
+    mark_job_failed,
+    insert_song,
+    get_song_by_fingerprint_hash,
+    get_song_by_title_artist,
+    dsn
+)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start background task
+    #app.state.worker_task = asyncio.create_task(job_worker_loop())
+    app.state.db_pool = await asyncpg.create_pool(dsn=dsn)
+
+    yield  # ⬅️ app starts here
+
+    # Cleanup on shutdown
+    await app.state.db_pool.close()
+    app.state.worker_task.cancel()
+    try:
+        await app.state.worker_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(lifespan=lifespan)
@@ -47,7 +82,7 @@ async def list_songs(request: Request):
 async def analyze(
     request: Request,
     input_type: str = Form(...),
-    audio: UploadFile = File(...),
+    audio: Optional[UploadFile] = File(None),
     outputs: List[str] = Form(...),
     title: str = Form(""),
     artist: str = Form(""),
@@ -60,76 +95,117 @@ async def analyze(
         "whisper": "lyrics" in outputs or "classification" in outputs,
         "classification": "classification" in outputs,
     }
+
     result = {
-        "title": None,
-        "artist": None,
-        "lyrics": None,
+        "title": title,
+        "artist": artist,
+        "lyrics": lyrics,
         "classification": None,
         "accuracy": None,
         "fingerprint": None,
         "duration": None,
+        "audio_processed": False
     }
 
-
     try:
-
         if input_type == "audio":
-            # Always need to save file
+            if not audio:
+                return {"success": False, "error": "Missing audio file for input_type 'audio'"}
             raw_filename = save_uploaded_file(audio)
             file_name = preprocess(raw_filename)
+            
+        if input_type == "search":
+            if not title or not artist:
+                return {"success": False, "error": "Missing title or artist for search input"}
 
-            # 🔍 Song Identification
-            if flags["identify"]:
-                acousti_out = await run_in_threadpool(run_acousti, file_name)
-                matches = acousti_out.get("matches", [])
-                if matches:
-                    result["title"] = matches[0].get("title")
-                    result["artist"] = matches[0].get("artist")
-                else:
-                    result["title"] = "Unknown"
-                    result["artist"] = "Unknown"
+            existing = await get_song_by_title_artist(db_pool, title, artist)
 
-                result["fingerprint"] = acousti_out.get("fingerprint")
-                result["fingerprint_hash"] = compute_fingerprint_hash(result["fingerprint"])
-                result["duration"] = acousti_out.get("duration")
+            if not existing:
+                return {"success": False, "error": "Song not found in database"}
 
-                # Check if song already in DB
-                existing = await get_song_by_fingerprint_hash(db_pool, result["fingerprint_hash"])
-                if existing:
-                    print("✅ Found existing song in DB, skipping processing")
+            result["title"] = existing["title"]
+            result["artist"] = existing["artist"]
+            result["fingerprint"] = existing["fingerprint"]
+            result["fingerprint_hash"] = existing["fingerprint_hash"]
+            result["duration"] = existing["duration"]
+
+        # 🔍 Song Identification
+        if flags["identify"]:
+            acousti_out = await run_in_threadpool(run_acousti, file_name)
+            matches = acousti_out.get("matches", [])
+            if matches:
+                result["title"] = matches[0].get("title")
+                result["artist"] = matches[0].get("artist")
+            else:
+                result["title"] = result["title"] or "Unknown"
+                result["artist"] = result["artist"] or "Unknown"
+
+            result["fingerprint"] = acousti_out.get("fingerprint")
+            result["fingerprint_hash"] = compute_fingerprint_hash(result["fingerprint"])
+            result["duration"] = acousti_out.get("duration")
+
+        # Check if song already in DB
+        existing = None
+        if result.get("fingerprint_hash"):
+            existing = await get_song_by_fingerprint_hash(db_pool, result["fingerprint_hash"])
+
+        needs_stem = flags["demucs"]
+        needs_lyrics = flags["whisper"]
+        needs_classification = flags["classification"]
+
+        if existing:
+            needs_stem = flags["demucs"] and not existing.get("audio_processed")
+            needs_lyrics = flags["whisper"] and not existing.get("lyrics")
+            needs_classification = flags["classification"] and not existing.get("classification")
+
+            if not (needs_stem or needs_lyrics or needs_classification):
+                print("✅ Found complete existing song in DB, skipping processing")
+                if input_type == "audio":
                     os.remove(os.path.join(SHARED_PATH, file_name))
-                    return {
-                        "success": True,
-                        "result": {
-                            "title": existing["title"],
-                            "artist": existing["artist"],
-                            "fingerprint": existing["fingerprint"],
-                            "duration": existing["duration"],
-                            "lyrics": existing["lyrics"],
-                            "classification": existing["classification"],
-                            "accuracy": existing["accuracy"],
-                        },
-                        "cached": True,
-                    }
+                return {
+                    "success": True,
+                    "result": {
+                        "title": existing["title"],
+                        "artist": existing["artist"],
+                        "fingerprint": existing["fingerprint"],
+                        "duration": existing["duration"],
+                        "lyrics": existing["lyrics"],
+                        "classification": existing["classification"],
+                        "accuracy": existing["accuracy"],
+                    },
+                    "cached": True,
+                }
 
-        # 🎛️ Demucs + Whisper
-        if flags["demucs"]:
+            result["title"] = existing["title"]
+            result["artist"] = existing["artist"]
+            result["fingerprint"] = existing["fingerprint"]
+            result["duration"] = existing["duration"]
+
+        # 🎛️ Demucs
+        if needs_stem:
+            print("🎛️ Running Demucs...")
             await run_in_threadpool(run_demucs, file_name)
             wait_for_file(os.path.join(VOCAL_STEMS_PATH, file_name))
+            result["audio_processed"] = True
 
-        if flags["whisper"]:
+        # 📝 Whisper
+        if needs_lyrics:
+            print("📝 Running Whisper...")
             whisper_out = await run_in_threadpool(run_whisper, file_name)
             result["lyrics"] = whisper_out.get("lyrics")
 
         # 🤖 Classification
-        if flags["classification"]:
+        if needs_classification:
+            print("🤖 Running Classifier...")
             classifier_out = await run_in_threadpool(run_classifier, result["lyrics"])
             result["classification"] = classifier_out.get("classification")
             result["accuracy"] = classifier_out.get("accuracy")
 
-        # 📝 Save to DB if audio-based
-        print("✅ Processing finished, adding to db")
-        if input_type == "audio":
+        print("🜥 Processing finished")
+
+        if input_type in {"audio", "search"} and result.get("fingerprint_hash"):
+            print("⬜ adding to db")
+            print(result)
             await insert_song(
                 db_pool,
                 title=result["title"],
@@ -140,84 +216,14 @@ async def analyze(
                 lyrics=result["lyrics"],
                 classification=result["classification"],
                 accuracy=result["accuracy"],
-                stem_name=file_name,
+                stem_name=file_name if input_type == "audio" else None,
+                audio_processed=result["audio_processed"]
             )
-            
-            
-        # if flags["demucs"]:
-        #     await run_in_threadpool(run_demucs, file_name)
-        #     wait_for_file(os.path.join(VOCAL_STEMS_PATH, file_name))
-        #     whisper_out = run_whisper(file_name)
-        #     result["lyrics"] = whisper_out.get("lyrics")
-            
-        # if flags[""]:
-        #     await run_in_threadpool(run_demucs, file_name)
-        #     wait_for_file(os.path.join(VOCAL_STEMS_PATH, file_name))
-        #     whisper_out = run_whisper(file_name)
-        #     result["lyrics"] = whisper_out.get("lyrics")
-            
-            
-            
-        # elif mode == "demucs-whisper-classifier":
-        #     acousti_out = run_in_threadpool(run_acousti,file_name)
-        #     matches = acousti_out.get("matches", [])
-            
-        #     if matches:
-        #         result["title"] = matches[0].get("title")
-        #         result["artist"] = matches[0].get("artist") 
-        #     else:
-        #         result["title"] = "Unknown"
-        #         result["artist"] = "Unknown"
-        #     result["fingerprint"] = acousti_out.get("fingerprint")
-        #     result["fingerprint_hash"] = compute_fingerprint_hash(result["fingerprint"])
-        #     result["duration"] = acousti_out.get("duration")
-            
-        #     existing = await get_song_by_fingerprint_hash(db_pool, result["fingerprint_hash"])
-        #     if existing:
-        #         print("✅ Found existing song in DB, skipping processing")
-        #         os.remove(f"/shared_data/{file_name}")
-        #         return {
-        #             "success": True,
-        #             "result": {
-        #                 "title":existing["title"],
-        #                 "artist": existing["artist"],
-        #                 "fingerprint": existing["fingerprint"],
-        #                 "duration": existing["duration"],
-        #                 "lyrics": existing["lyrics"],
-        #                 "classification": existing["classification"],
-        #                 "accuracy": existing["accuracy"],
-        #             },
-        #             "cached": True
-        #         }
-        #     run_in_threadpool(run_demucs, file_name)
-        #     wait_for_file(os.path.join(VOCAL_STEMS_PATH, file_name))
-        #     whisper_out = run_in_threadpool(run_whisper,file_name)
-        #     result["lyrics"] = whisper_out.get("lyrics")
-        #     classifier_out = run_classifier(result["lyrics"])
-        #     result["classification"] = classifier_out.get("classification")
-        #     result["accuracy"] = classifier_out.get("accuracy")
-        # elif mode == "classifier-text":
-        #     classifier_out = run_in_threadpool(run_classifier,lyrics)
-        #     result["classification"] = classifier_out.get("classification")
-        #     result["accuracy"] = classifier_out.get("accuracy")
-        # else:
-        #     return {"success": False, "error": f"Invalid mode: {mode}"}
 
-        await insert_song(
-            db_pool,
-            title=result["title"],
-            artist=result["artist"],
-            duration=result["duration"],
-            fingerprint=result["fingerprint"],
-            fingerprint_hash=result["fingerprint_hash"],
-            lyrics=result["lyrics"],
-            classification=result["classification"],
-            accuracy=result["accuracy"],
-            stem_name=file_name
-        )
-        
+        print("🜥 analyze call successful")
         return {"success": True, "result": result}
 
     except Exception as e:
         return {"success": False, "error": str(e)}
-    
+
+

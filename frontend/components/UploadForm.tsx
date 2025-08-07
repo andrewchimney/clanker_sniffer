@@ -16,6 +16,7 @@ const steps = [
   { key: 'classification', label: '→ 🤖 Classification' },
 ];
 
+
 export default function UploadForm({ onResult }: { onResult: (data: any) => void }) {
 
   interface SongResult {
@@ -45,7 +46,9 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
       ? steps.findIndex(s => s.key === 'identify')
       : 0;
 
-  const validEndSteps = steps.filter((_, idx) => idx > startIndex);
+  const validEndSteps = steps
+    .filter((_, idx) => idx > startIndex)
+    .filter(s => s.key !== 'stems'); // 👈 Remove stems from end options
 
   useEffect(() => {
     if (!validEndSteps.find(s => s.key === end)) {
@@ -57,7 +60,8 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
     e.preventDefault();
     if (start === 'audio' && !file) return alert('Missing audio file');
     if (start === 'text' && !lyrics) return alert('Missing lyrics');
-
+    if (start === 'search' && !(title && artist)) return alert('Missing title or artist');
+ 
     setLoading(true);
     const formData = new FormData();
 
@@ -76,7 +80,7 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
     outputs.forEach(service => formData.append('outputs', service));
 
     try {
-      const res = await fetch('http://localhost:8005/api/analyze', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         body: formData,
       });
@@ -87,7 +91,7 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
     } catch (err) {
       alert('Upload failed');
     } finally {
-      mutate('http://localhost:8005/api/songs');
+      mutate('/api/songs');
       setLoading(false);
     }
   };
@@ -109,8 +113,8 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
               className="border rounded px-2 py-1 bg-black text-white"
             >
               <option value="audio">🎧 Upload Audio</option>
+              <option value="search">🧠 Song Info (DB)</option>
               <option value="text">📝 Paste Lyrics</option>
-              <option value="search">🔍 Song Info (DB)</option>
             </select>
           </div>
 
@@ -129,21 +133,34 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto">
-          {steps.map((step, index) => (
-            <div
-              key={step.key}
-              className={cn(
-                'rounded-full border px-4 py-1 whitespace-nowrap flex items-center',
-                index >= startIndex && index <= steps.findIndex(s => s.key === end)
-                  ? 'bg-white text-black'
-                  : 'bg-transparent text-white border-white',
-                index > 0 && 'relative before:content-[""] before:mr-2 before:text-white'
-              )}
-            >
-              {step.label}
-            </div>
-          ))}
+          {steps.map((step, index) => {
+            if (step.key === 'stems') return null; // 🚫 Don't render the button
+
+            const startIndex = start === 'text'
+              ? steps.findIndex(s => s.key === 'lyrics')
+              : start === 'search'
+                ? steps.findIndex(s => s.key === 'identify')
+                : 0;
+
+            const endIndex = steps.findIndex(s => s.key === end);
+
+            return (
+              <div
+                key={step.key}
+                className={cn(
+                  'rounded-full border px-4 py-1 whitespace-nowrap flex items-center',
+                  index >= startIndex && index <= endIndex
+                    ? 'bg-white text-black'
+                    : 'bg-transparent text-white border-white',
+                  index > 0 && 'relative before:content-[""] before:mr-2 before:text-white'
+                )}
+              >
+                {step.label}
+              </div>
+            );
+          })}
         </div>
+
 
         {
           start === 'audio' && (
@@ -164,7 +181,7 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
         }
 
         {
-          (start === 'audio' || start === 'text') && (
+          (start === 'audio' || start === 'text'|| start==='search') && (
             <>
               <input
                 value={title}
