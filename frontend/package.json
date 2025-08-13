@@ -2,6 +2,13 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "micromatch": {
+      "picomatch": "^4.0.3"
+    },
+   "picomatch": "^4.0.3"
+  },
+
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
@@ -30,4 +37,6 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   }
+
 }
+

@@ -70,3 +70,5 @@ crash.log
 .terraform/
 terraform/
 *.zip
+oci_key
+oci_key.pub

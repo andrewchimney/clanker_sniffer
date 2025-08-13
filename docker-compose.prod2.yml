@@ -13,13 +13,9 @@ services:
     ports:
       - "5432:5432"
 
-
   frontend:
-    build: 
-      context: ./frontend
-      dockerfile: Dockerfile-prod
+    build: ./frontend
     container_name: clanker_frontend
-    platform: linux/arm64 
     depends_on:
       - db
     restart: on-failure
@@ -29,17 +25,19 @@ services:
     ports:
       - "3000:3000"
     working_dir: /app
-    command: sh -c "npm run build && npm start"
-    volumes: 
+    command: sh -c "npm run build && npm run start"
+    volumes:
       - ./frontend:/app
       - ./shared_data:/shared_data
       - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - ./.env
 
   demucs_api:
     build: ./demucs-api
     container_name: clanker_demucs
+    command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -47,13 +45,11 @@ services:
       - ./demucs-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
-    expose:
-      - "8000"
-
 
   whisper_api:
     build: ./whisper-api
     container_name: clanker_whisper
+    command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -63,13 +59,11 @@ services:
     working_dir: /app
     env_file:
       - ./.env
-    expose:
-      - "8000"
-
 
   classifier_api:
     build: ./classifier-api
     container_name: clanker_classifier
+    command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -77,12 +71,11 @@ services:
       - ./classifier-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
-    expose:
-      - "8000"
 
   acousti_api:
     build: ./acousti-api
     container_name: clanker_acousti
+    command: tail -f /dev/null
     depends_on:
       - frontend
     restart: on-failure
@@ -92,26 +85,6 @@ services:
     working_dir: /app
     env_file:
       - ./.env
-  orchestrator_api:
-    build: ./orchestrator-api
-    container_name: clanker_orchestrator
-    depends_on:
-      - demucs_api
-      - whisper_api
-      - classifier_api
-      - acousti_api
-      - db
-    volumes:
-      - ./orchestrator-api:/app
-      - ./shared_data:/shared_data
-    working_dir: /app
-    env_file:
-      - ./.env
-    expose:
-      - "8000"
-
-
-
 
 volumes:
   pgdata:

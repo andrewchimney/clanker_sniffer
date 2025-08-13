@@ -35,3 +35,16 @@ CREATE TABLE job_queue (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE OR REPLACE FUNCTION update_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+   NEW.updated_at = NOW();
+   RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_job_queue_timestamp
+BEFORE UPDATE ON job_queue
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+

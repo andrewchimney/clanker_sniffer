@@ -3,4 +3,7 @@ npm-debug.log
 .next
 .git
 *.log
+
 .env
+.tmp
+tmp/
