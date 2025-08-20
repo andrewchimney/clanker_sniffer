@@ -1,10 +1,10 @@
 # demucs-api/Dockerfile
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 WORKDIR /app
 
 # Install system deps
-RUN apt-get update && apt-get install -y ffmpeg git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ffmpeg git curl && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps
 COPY requirements.txt .

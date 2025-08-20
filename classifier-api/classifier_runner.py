@@ -7,6 +7,11 @@ app = FastAPI()
 
 class LyricsInput(BaseModel):
     lyrics: str
+    
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 
 @app.post("/classify")
 def classify(input: LyricsInput):

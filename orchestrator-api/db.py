@@ -109,7 +109,7 @@ async def mark_job_failed(conn, job_id: int, error_msg: str):
     await conn.execute("""
         UPDATE job_queue
         SET status = 'failed',
-            error = $1,
+            last_error = $1,
             updated_at = NOW()
         WHERE id = $2
     """, error_msg, job_id)

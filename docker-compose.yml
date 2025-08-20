@@ -12,6 +12,12 @@ services:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 
   frontend:
@@ -19,7 +25,8 @@ services:
     container_name: clanker_frontend
     #platform: linux/arm64  # if you're on M1/M2
     depends_on:
-      - db
+      orchestrator_api:
+        condition: service_healthy
     restart: on-failure
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
@@ -38,8 +45,6 @@ services:
   demucs_api:
     build: ./demucs-api
     container_name: clanker_demucs
-    depends_on:
-      - frontend
     restart: on-failure
     volumes:
       - ./demucs-api:/app
@@ -47,13 +52,17 @@ services:
     working_dir: /app
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
 
   whisper_api:
     build: ./whisper-api
     container_name: clanker_whisper
-    depends_on:
-      - frontend
     restart: on-failure
     volumes:
       - ./whisper-api:/app
@@ -63,13 +72,17 @@ services:
       - ./.env
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
 
   classifier_api:
     build: ./classifier-api
     container_name: clanker_classifier
-    depends_on:
-      - frontend
     restart: on-failure
     volumes:
       - ./classifier-api:/app
@@ -77,12 +90,16 @@ services:
     working_dir: /app
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
   acousti_api:
     build: ./acousti-api
     container_name: clanker_acousti
-    depends_on:
-      - frontend
     restart: on-failure
     volumes:
       - ./acousti-api:/app
@@ -90,15 +107,26 @@ services:
     working_dir: /app
     env_file:
       - ./.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
   orchestrator_api:
     build: ./orchestrator-api
     container_name: clanker_orchestrator
     depends_on:
-      - demucs_api
-      - whisper_api
-      - classifier_api
-      - acousti_api
-      - db
+      db:
+        condition: service_healthy
+      demucs_api:
+        condition: service_healthy
+      whisper_api:
+        condition: service_healthy
+      classifier_api:
+        condition: service_healthy
+      acousti_api:
+        condition: service_healthy
     volumes:
       - ./orchestrator-api:/app
       - ./shared_data:/shared_data
@@ -107,6 +135,26 @@ services:
       - ./.env
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  worker:
+    build: ./orchestrator-api
+    command: ["python", "-u", "worker.py"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      - ./orchestrator-api:/app
+      - ./shared_data:/shared_data
+    restart: unless-stopped
+
 
 
 

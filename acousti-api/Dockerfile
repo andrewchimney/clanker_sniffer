@@ -1,13 +1,13 @@
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies for audio processing and fingerprinting
 RUN apt-get update && \
-    apt-get install -y ffmpeg libchromaprint-tools gcc libpq-dev && \
+    apt-get install -y ffmpeg libchromaprint-tools gcc libpq-dev curl && \
     rm -rf /var/lib/apt/lists/*
-    
+
 
 
 

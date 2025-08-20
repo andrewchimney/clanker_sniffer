@@ -10,6 +10,11 @@ model = WhisperModel("base", device="cpu", compute_type="int8")
 
 VOCAL_DIR = "/shared_data/vocal_stems"
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 @app.get("/transcribe")
 def transcribe(stem_name: str = Query(..., description="Filename of stem to transcribe")):
     print("🟨 [Whisper] transcribing vocals...")

@@ -28,6 +28,10 @@ def separate_vocals(input_path: str, output_path: str):
             return True
     return False
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 
 @app.post("/separate")
 async def separate(file: UploadFile = File(...)):

@@ -72,3 +72,4 @@ terraform/
 *.zip
 oci_key
 oci_key.pub
+temp/

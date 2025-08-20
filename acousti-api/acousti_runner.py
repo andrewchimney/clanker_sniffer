@@ -56,6 +56,10 @@ def lookup_acoustid(fingerprint, duration, api_key):
 
     return response.json()
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 @app.post("/convert")
 async def convert_audio(file: UploadFile = File(...)):
     print("🟦 [Acousti] converting...")

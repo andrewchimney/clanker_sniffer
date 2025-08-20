@@ -19,7 +19,7 @@ UPDATE songs SET fingerprint_hash = md5(fingerprint);
 
 ALTER TABLE songs ADD CONSTRAINT unique_fingerprint_hash UNIQUE(fingerprint_hash);
 
-ALTER TABLE songs ADD COLUMN audio_processed BOOLEAN DEFAULT FALSE
+ALTER TABLE songs ADD COLUMN audio_processed BOOLEAN DEFAULT FALSE;
 
 CREATE TABLE job_queue (
     id SERIAL PRIMARY KEY,
@@ -35,16 +35,18 @@ CREATE TABLE job_queue (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE OR REPLACE FUNCTION update_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-   NEW.updated_at = NOW();
-   RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+ALTER TABLE job_queue
+  ADD COLUMN IF NOT EXISTS attempts INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS last_error TEXT,
+  ADD COLUMN IF NOT EXISTS queued_at TIMESTAMP DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS started_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMP DEFAULT NOW();
 
-CREATE TRIGGER update_job_queue_timestamp
-BEFORE UPDATE ON job_queue
-FOR EACH ROW
-EXECUTE FUNCTION update_timestamp();
+-- Pull fastest by ready time
+CREATE INDEX IF NOT EXISTS idx_job_queue_ready
+  ON job_queue (status, next_attempt_at);
 
+-- Optional: prioritize newest first
+CREATE INDEX IF NOT EXISTS idx_job_queue_queued_at
+  ON job_queue (queued_at DESC);
