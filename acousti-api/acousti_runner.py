@@ -8,6 +8,14 @@ import requests
 import shutil
 from pathlib import Path
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)-9s %(message)s",
+)
+logger = logging.getLogger("acousti")
+
 app = FastAPI()
 
 # Optional: Allow frontend calls during local dev
@@ -56,22 +64,22 @@ def lookup_acoustid(fingerprint, duration, api_key):
 
     return response.json()
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+async def convert_audio(file_path: str) -> str:
+    """
+    Convert an uploaded audio file to WAV using ffmpeg.
+    Returns the path of the converted WAV file.
+    Raises subprocess.CalledProcessError on failure.
+    """
+    input_path = file_path
+    base = os.path.basename(file_path)
+    output_path = f"/shared_data/preprocessed/{base}.wav"
 
-@app.post("/convert")
-async def convert_audio(file: UploadFile = File(...)):
-    print("🟦 [Acousti] converting...")
-    #print("📥 Received file:", file.filename)
-    input_path = f"/shared_data/tmp_{file.filename}"
-    output_path = f"/shared_data/{file.filename}.wav"
-
-    with open(input_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    # Save the uploaded file
+    # with open(input_path, "wb") as f:
+    #     shutil.copyfileobj(file.file, f)
 
     try:
-        result = subprocess.run(
+        subprocess.run(
             [
                 "ffmpeg", "-y", "-i", input_path,
                 "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2",
@@ -81,42 +89,41 @@ async def convert_audio(file: UploadFile = File(...)):
             capture_output=True,
             text=True
         )
-
-        #print("✅ FFmpeg succeeded")
-        #print("📄 FFmpeg stdout:\n", result.stdout)
-        #print("⚠️ FFmpeg stderr:\n", result.stderr)
-
         os.remove(input_path)
-        return JSONResponse({"filename": os.path.basename(output_path)})
-
+        return output_path  
     except subprocess.CalledProcessError as e:
-        print("❌ FFmpeg failed")
-        print("📄 FFmpeg stdout:\n", e.stdout)
-        print("⚠️ FFmpeg stderr:\n", e.stderr)
-        return JSONResponse(
-            {
-                "converted": False,
-                "error": "FFmpeg failed",
-                "stdout": e.stdout,
-                "stderr": e.stderr
-            },
-            status_code=500
+        os.remove(input_path) if os.path.exists(input_path) else None
+        raise RuntimeError(
+            f"FFmpeg failed (stdout={e.stdout}, stderr={e.stderr})"
         )
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+@app.post("/convert")
+async def convert(file_path: str = Form(...)):
+    logger.info("🟦Converting🟦")
+    try:
+        wav_path = await convert_audio(file_path)
+        logger.info("🟦Converted Successfully🟦")
+        return JSONResponse({"file_path": wav_path})
+    except RuntimeError as e:
+        print(e)
+        return JSONResponse({"error": str(e)}, status_code=500)
+      
 
 
 @app.post("/identify")
-async def identify(file: UploadFile, filename: str = Form(...)):
+async def identify(file_path: str = Form(...)):
     try:
-        print("🟦 [Acousti] identifying...")
-        audio_path = f"/shared_data/{filename}"
-        with open(audio_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-
+        logger.info("🟦Identifying🟦")
+        
         api_key = os.getenv("ACOUSTID_API_KEY")
         if not api_key:
             raise RuntimeError("Missing ACOUSTID_API_KEY env var")
 
-        fingerprint, duration = run_fpcalc(audio_path)
+        fingerprint, duration = run_fpcalc(file_path)
         raw_result = lookup_acoustid(fingerprint, duration, api_key)
 
         matches = []
@@ -127,11 +134,12 @@ async def identify(file: UploadFile, filename: str = Form(...)):
                 if recording.get("artists"):
                     artist = recording["artists"][0].get("name", "Unknown")
                 matches.append({"title": title, "artist": artist})
-        #print("matches acousti", matches)
+        
+        logger.info("🟦Identified Successfully🟦")
         return JSONResponse({
             "fingerprint": fingerprint,
             "duration": duration,
-            "matches": matches,
+            "matches": matches
         })
 
     except Exception as e:

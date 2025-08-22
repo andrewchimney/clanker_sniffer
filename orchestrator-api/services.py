@@ -3,10 +3,19 @@ import time
 import asyncio
 import httpx
 from pathlib import Path
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)-9s %(message)s",
+)
+logger = logging.getLogger("orchestrator")
 
 # ------- config -------
 SHARED_PATH = "/shared_data"
-VOCAL_STEMS_PATH = os.path.join(SHARED_PATH, "vocal_stems")
+STEMS_PATH = os.path.join(SHARED_PATH, "stems")
+RAW_PATH = os.path.join(SHARED_PATH, "raw")
+PREPROCESSED_PATH = os.path.join(SHARED_PATH, "preprocessed")
 
 ACOUSTI_URL   = os.getenv("ACOUSTI_URL",   "http://clanker_acousti:8000")
 DEMUCS_URL    = os.getenv("DEMUCS_URL",    "http://clanker_demucs:8000")
@@ -33,29 +42,27 @@ async def _raise(resp: httpx.Response, ctx: str):
 
 
 # ------- async helpers -------
-async def run_demucs(file_name: str):
-    file_path = os.path.join(SHARED_PATH, file_name)
+async def run_demucs(file_path: str):
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Audio not found for Demucs: {file_path}")
 
-    with open(file_path, "rb") as f:
-        files = {'file': (file_name, f)}
-        r = await _client.post(f"{DEMUCS_URL}/separate", files=files, timeout=T_DEMUCS)
+    r = await _client.post(f"{DEMUCS_URL}/separate", data={"file_path": file_path}, timeout=T_DEMUCS)
     if r.status_code != 200:
         await _raise(r, "Demucs")
     return r.json()
 
 
-async def run_whisper(file_name: str):
-    r = await _client.get(f"{WHISPER_URL}/transcribe",
-                          params={"stem_name": file_name},
-                          timeout=T_WHISPER)
+async def run_whisper(file_path: str):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Audio not found for Whisper: {file_path}")
+    
+    r = await _client.post(f"{WHISPER_URL}/transcribe", data={"file_path": file_path}, timeout=T_WHISPER)
     if r.status_code != 200:
         await _raise(r, "Whisper")
     return r.json()
 
 
-async def run_classifier(lyrics: str):
+async def run_classify(lyrics: str):
     r = await _client.post(f"{CLASSIFY_URL}/classify",
                            json={"lyrics": lyrics},
                            timeout=T_CLASSIFIER)
@@ -64,25 +71,29 @@ async def run_classifier(lyrics: str):
     return r.json()
 
 
-async def run_acousti(file_name: str):
-    file_path = os.path.join(SHARED_PATH, file_name)
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Audio not found for Acousti: {file_path}")
-
-    with open(file_path, "rb") as f:
-        files = {"file": (file_name, f), "filename": (None, file_name)}
-        r = await _client.post(f"{ACOUSTI_URL}/identify", files=files, timeout=T_IDENTIFY)
-    if r.status_code != 200:
-        await _raise(r, "Acoustic fingerprinting")
-    return r.json()
-
+async def run_acousti(file_path: str):
+    try:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Audio not found for Acousti: {file_path}")
+        r = await _client.post(f"{ACOUSTI_URL}/convert", data={"file_path": file_path},  timeout=T_IDENTIFY)
+        
+        file_path = r.json()["file_path"]
+        
+        r = await _client.post(f"{ACOUSTI_URL}/identify", data={"file_path": file_path}, timeout=T_IDENTIFY)
+        data = r.json()          # this is the response dict
+        data["file_path"] = file_path   # inject your own field
+        return data
+    except Exception as e:
+        print(e)
 
 async def preprocess(file_name: str) -> str:
-    input_path = os.path.join(SHARED_PATH, file_name)
+    
     ext = Path(file_name).suffix.lower()
 
     if ext == ".wav":
         return file_name
+    
+    input_path = os.path.join(RAW_PATH, file_name)
 
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input not found for convert: {input_path}")

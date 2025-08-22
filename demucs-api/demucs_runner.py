@@ -1,23 +1,29 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 import os
 from pathlib import Path
-import shutil
-import sys
 import traceback
 import soundfile as sf
-
+from fastapi.responses import JSONResponse
 from demucs.apply import apply_model
 from demucs.pretrained import get_model
 from demucs.audio import AudioFile
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)-9s %(message)s",
+)
+logger = logging.getLogger("demucs")
+
 app = FastAPI()
 MODEL = get_model(name="htdemucs")
-OUTPUT_DIR = Path("/shared_data/vocal_stems")
+OUTPUT_DIR = Path("/shared_data/stems")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def separate_vocals(input_path: str, output_path: str):
-    ref = AudioFile(input_path).read(streams=0, samplerate=MODEL.samplerate)
+def separate_vocals(file_path: str, output_path: str):
+    ref = AudioFile(file_path).read(streams=0, samplerate=MODEL.samplerate)
     ref = ref.unsqueeze(0)
     sources = apply_model(MODEL, ref, split=True, overlap=0.25)[0]
 
@@ -34,24 +40,18 @@ async def health():
 
 
 @app.post("/separate")
-async def separate(file: UploadFile = File(...)):
-    print("🟪 [Demucs] separating stems...")
-    file_name = file.filename
-    input_path = Path(f"/shared_data/{file_name}")
-    output_path = OUTPUT_DIR / file_name
+async def separate(file_path: str = Form(...)):
+    logger.info("🟦Separating Stems🟦")
+    base = os.path.basename(file_path)
+    output_path = f"/shared_data/stems/{base}.wav"
 
     try:
-        with open(input_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-
-        #print(f"📥 Received: {input_path}", file=sys.stderr)
-        #print(f"📤 Output will be: {output_path}", file=sys.stderr)
-
-        success = separate_vocals(str(input_path), str(output_path))
-        os.remove(input_path)
+        success = separate_vocals(str(file_path), output_path)
+        os.remove(file_path)
 
         if success:
-            return {"status": "ok", "message": f"Vocals saved to {output_path.name}"}
+            logger.info("🟦Stems Separated Successfuly🟦")
+            return JSONResponse({"file_path": output_path})
         else:
             return {"status": "error", "message": "No vocals stem found."}
     except Exception as e:
