@@ -101,12 +101,13 @@ async def convert_audio(file_path: str) -> str:
 async def health():
     return {"status": "ok"}
 
+
 @app.post("/convert")
 async def convert(file_path: str = Form(...)):
-    logger.info("🟦Converting🟦")
+    logger.info("🟦Converting")
     try:
         wav_path = await convert_audio(file_path)
-        logger.info("🟦Converted Successfully🟦")
+        logger.info("🟦Converted Successfully")
         return JSONResponse({"file_path": wav_path})
     except RuntimeError as e:
         print(e)
@@ -117,7 +118,7 @@ async def convert(file_path: str = Form(...)):
 @app.post("/identify")
 async def identify(file_path: str = Form(...)):
     try:
-        logger.info("🟦Identifying🟦")
+        logger.info("🟦Identifying")
         
         api_key = os.getenv("ACOUSTID_API_KEY")
         if not api_key:
@@ -135,7 +136,7 @@ async def identify(file_path: str = Form(...)):
                     artist = recording["artists"][0].get("name", "Unknown")
                 matches.append({"title": title, "artist": artist})
         
-        logger.info("🟦Identified Successfully🟦")
+        logger.info("🟦Identified Successfully")
         return JSONResponse({
             "fingerprint": fingerprint,
             "duration": duration,

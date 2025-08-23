@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, Form
 from pydantic import BaseModel
 import sys
 import json
@@ -22,16 +22,14 @@ async def health():
 
 
 @app.post("/classify")
-def classify(input: LyricsInput):
-    logger.info("🟦Classifying Lyrics🟦")
-    lyrics = input.lyrics
-    #print(f"📥 Received: {lyrics}", file=sys.stderr)
-
-    # Simulated classification result
+def classify(lyrics: str = Form(...)):
+    logger.info("🟦Classifying Lyrics")
+    
+    
     classification = "AI"
     accuracy = 0.9324
     
-    logger.info("🟦Lyrics Classified Successfully🟦")
+    logger.info("🟦Lyrics Classified Successfully")
     return {
         "classification": classification,
         "accuracy": accuracy

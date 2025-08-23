@@ -10,19 +10,6 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-      - ./shared_data:/shared_data
-    command:
-      - "postgres"
-      - "-c"
-      - "log_timezone=UTC"                      # match your app’s UTC timestamps
-      - "-c"
-      - "log_min_messages=info"                 # show INFO and above
-      - "-c"
-      - "log_min_error_statement=info"
-      - "-c"
-      - "client_min_messages=notice"
-      - "-c"
-      - "log_line_prefix=%m %s:     clanker_db %u@%d app=%a [%p] "
     ports:
       - "5432:5432"
     healthcheck:
@@ -46,7 +33,7 @@ services:
     ports:
       - "3000:3000"
     working_dir: /app
-    command: sh -c "npm run dev"
+    command: sh -c "npm run build && npm run start"
     volumes:
       - ./frontend:/app
       - ./shared_data:/shared_data
@@ -61,7 +48,6 @@ services:
     volumes:
       - ./demucs-api:/app
       - ./shared_data:/shared_data
-      - ./shared_data/logs/configs:/logcfg:ro
     working_dir: /app
     expose:
       - "8000"
@@ -80,7 +66,6 @@ services:
     volumes:
       - ./whisper-api:/app
       - ./shared_data:/shared_data
-      - ./shared_data/logs/configs/logconfig.json:/app/logging/logconfig.json:ro
     working_dir: /app
     env_file:
       - ./.env
@@ -101,7 +86,6 @@ services:
     volumes:
       - ./classifier-api:/app
       - ./shared_data:/shared_data
-      - ./shared_data/logs/configs/logconfig.json:/app/logging/logconfig.json:ro
     working_dir: /app
     expose:
       - "8000"
@@ -119,7 +103,6 @@ services:
     volumes:
       - ./acousti-api:/app
       - ./shared_data:/shared_data
-      - ./shared_data/logs/configs/logconfig.json:/app/logging/logconfig.json:ro
     working_dir: /app
     env_file:
       - ./.env
@@ -146,7 +129,6 @@ services:
     volumes:
       - ./orchestrator-api:/app
       - ./shared_data:/shared_data
-      - ./shared_data/logs/configs:/logcfg:ro
     working_dir: /app
     env_file:
       - ./.env
@@ -171,9 +153,6 @@ services:
   #     - ./orchestrator-api:/app
   #     - ./shared_data:/shared_data
   #   restart: unless-stopped
-
-
-
 
 
 volumes:

@@ -63,9 +63,7 @@ async def run_whisper(file_path: str):
 
 
 async def run_classify(lyrics: str):
-    r = await _client.post(f"{CLASSIFY_URL}/classify",
-                           json={"lyrics": lyrics},
-                           timeout=T_CLASSIFIER)
+    r = await _client.post(f"{CLASSIFY_URL}/classify", data={"lyrics": lyrics}, timeout=T_CLASSIFIER)
     if r.status_code != 200:
         await _raise(r, "Classifier")
     return r.json()
@@ -124,11 +122,3 @@ async def preprocess(file_name: str) -> str:
 
     return converted_name
 
-
-# ------- sync file wait (unchanged, but use asyncio.sleep if inside async code) -------
-def wait_for_file(path: str, timeout: int = 30):
-    start = time.time()
-    while not os.path.exists(path):
-        if time.time() - start > timeout:
-            raise TimeoutError(f"File not found within {timeout}s: {path}")
-        time.sleep(0.2)

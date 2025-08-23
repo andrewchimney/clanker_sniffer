@@ -41,7 +41,7 @@ async def health():
 
 @app.post("/separate")
 async def separate(file_path: str = Form(...)):
-    logger.info("🟦Separating Stems🟦")
+    logger.info("🟦Separating Stems")
     base = os.path.basename(file_path)
     output_path = f"/shared_data/stems/{base}.wav"
 
@@ -50,7 +50,7 @@ async def separate(file_path: str = Form(...)):
         os.remove(file_path)
 
         if success:
-            logger.info("🟦Stems Separated Successfuly🟦")
+            logger.info("🟦Stems Separated Successfuly")
             return JSONResponse({"file_path": output_path})
         else:
             return {"status": "error", "message": "No vocals stem found."}

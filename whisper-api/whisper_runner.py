@@ -24,7 +24,7 @@ async def health():
 
 @app.post("/transcribe")
 async def transcribe(file_path: str = Form(...)):
-    logger.info("🟦transcribing vocals🟦")
+    logger.info("🟦transcribing vocals")
 
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -32,7 +32,7 @@ async def transcribe(file_path: str = Form(...)):
     try:
         segments, info = model.transcribe(file_path, beam_size=5, language="en")
         transcript = " ".join(segment.text.strip() for segment in segments)
-        logger.info("🟦vocals transcribed successfully🟦")
+        logger.info("🟦vocals transcribed successfully")
         return {"lyrics": transcript}
     except Exception as e:
         logging.error(e, exc_info=True)

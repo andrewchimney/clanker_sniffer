@@ -118,7 +118,7 @@ async def process_job(conn):
     job = await get_and_claim_job(conn)
     if not job:
         return None
-    logger.info("🟦Processing Job🟦")
+    logger.info("🟦Processing Job")
     try:
         stage = job["current_stage"]
         file_path= job["file_path"]
@@ -190,7 +190,7 @@ async def process_job(conn):
         else:
             raise RuntimeError(f"Unknown stage: {stage}")
         
-        logger.info("🟦Job Processed Successfully🟦")
+        logger.info("🟦Job Processed Successfully")
         song_id = await finalize_job_if_ready(conn, job["id"])
         if song_id:
             return ("completed", song_id)   # promoted to songs; job was deleted
@@ -263,7 +263,7 @@ async def finalize_job_if_ready(conn, job_id: int) -> int | None:
 
 
 
-    logger.info("🟦Request Successfully Added to Database🟦")
+    logger.info("🟦Request Successfully Added to Database")
     return song_id
 
 async def get_and_claim_job(conn):
