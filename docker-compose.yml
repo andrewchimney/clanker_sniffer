@@ -157,6 +157,19 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
+  fluentd:
+    build: ./fluentd
+    user: "0:0"                      # keep root so it can read /var/lib/docker/containers
+    restart: unless-stopped
+    environment:
+      FLUENT_UID: "0"
+      OCI_CONFIG_FILE: /fluentd/oci_config      # <-- explicit path to your config file
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf:ro
+      - ./fluentd/oci_api_key.pem:/fluentd/oci_api_key.pem:ro
+      - ./fluentd/oci_config:/fluentd/oci_config:ro  # <-- mount the file here
+        
 
 volumes:
   pgdata:

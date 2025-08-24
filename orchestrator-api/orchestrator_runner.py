@@ -9,13 +9,11 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 import asyncio
 import asyncpg
-import time
 from services import (
     run_demucs, 
     run_whisper, 
     run_classify, 
     run_acousti,
-    preprocess
 )
 from utils import (
     SHARED_PATH, 
@@ -29,11 +27,8 @@ from db import (
     update_job,
     lifespan,
     upsert_song,
-    get_song_by_fingerprint_hash,
-    get_song_by_title_artist,
     dsn,
     create_job,
-    get_job
 )
 import logging
 

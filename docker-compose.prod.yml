@@ -17,8 +17,8 @@ services:
       - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
       - --certificatesresolvers.le.acme.email=andrewchimney@gmail.com
       - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-      - --accesslog=true
-      - --accesslog.format=json
+      # - --accesslog=true
+      # - --accesslog.format=json
     ports:
       - "80:80"
       - "443:443"
@@ -34,7 +34,7 @@ services:
     depends_on:
       orchestrator_api:
         condition: service_healthy
-    restart: on-failure
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       CHOKIDAR_USEPOLLING: "true"
@@ -61,7 +61,7 @@ services:
   db:
     image: postgres:15
     container_name: clanker_db
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -94,7 +94,7 @@ services:
   demucs_api:
     build: ./demucs-api
     container_name: clanker_demucs
-    restart: on-failure
+    restart: unless-stopped
     volumes:
       - ./demucs-api:/app
       - ./shared_data:/shared_data
@@ -112,7 +112,7 @@ services:
   whisper_api:
     build: ./whisper-api
     container_name: clanker_whisper
-    restart: on-failure
+    restart: unless-stopped
     volumes:
       - ./whisper-api:/app
       - ./shared_data:/shared_data
@@ -132,7 +132,7 @@ services:
   classifier_api:
     build: ./classifier-api
     container_name: clanker_classifier
-    restart: on-failure
+    restart: unless-stopped
     volumes:
       - ./classifier-api:/app
       - ./shared_data:/shared_data
@@ -149,7 +149,7 @@ services:
   acousti_api:
     build: ./acousti-api
     container_name: clanker_acousti
-    restart: on-failure
+    restart: unless-stopped
     volumes:
       - ./acousti-api:/app
       - ./shared_data:/shared_data
@@ -190,6 +190,21 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
+
+  fluentd:
+    build: ./fluentd
+    user: "0:0"                      # keep root so it can read /var/lib/docker/containers
+    restart: unless-stopped
+    environment:
+      FLUENT_UID: "0"
+      OCI_CONFIG_FILE: /fluentd/oci_config      # <-- explicit path to your config file
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf:ro
+      - ./fluentd/oci_api_key.pem:/fluentd/oci_api_key.pem:ro
+      - ./fluentd/oci_config:/fluentd/oci_config:ro  # <-- mount the file here
+        
+
 
 volumes:
   pgdata:

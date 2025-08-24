@@ -13,7 +13,7 @@ import "./globals.css";
 // });
 
 export const metadata: Metadata = {
-  title: "Clanker Sniffer",
+  title: "Clankr - Detect AI Lyrics",
   description: "See if songs have AI generated lyrics",
 };
 
