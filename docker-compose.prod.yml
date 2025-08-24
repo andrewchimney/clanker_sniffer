@@ -49,6 +49,7 @@ services:
     networks: [web, default]             # public via traefik + internal to talk to API
     labels:
       - traefik.enable=true
+      - traefik.docker.network=clanker_sniffer_web
       - traefik.http.routers.frontend.rule=Host(`clankr.app`,`www.clankr.app`)
       - traefik.http.routers.frontend.entrypoints=websecure
       - traefik.http.routers.frontend.tls.certresolver=le
