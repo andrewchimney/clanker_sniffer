@@ -17,6 +17,8 @@ services:
       - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
       - --certificatesresolvers.le.acme.email=andrewchimney@gmail.com
       - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --accesslog=true
+      - --accesslog.format=json
     ports:
       - "80:80"
       - "443:443"
