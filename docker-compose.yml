@@ -36,7 +36,9 @@ services:
 
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: dev
     container_name: clanker_frontend
     depends_on:
       orchestrator_api:
@@ -45,7 +47,6 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       CHOKIDAR_USEPOLLING: "true"
-      NODE_ENV: dev
     ports:
       - "3000:3000"
     working_dir: /app

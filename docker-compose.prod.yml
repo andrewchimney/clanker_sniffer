@@ -36,16 +36,13 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       CHOKIDAR_USEPOLLING: "true"
-      NODE_ENV: production
     # remove host port publish:
     # ports: ["3000:3000"]
     expose: ["3000"]
     working_dir: /app
     command: ["npm","run","start"]
     volumes:
-      - ./frontend:/app
-      - ./shared_data:/shared_data
-      - /app/node_modules
+      - ./shared_data:/shared_data:ro
     env_file: [./.env]
     networks: [web, default]             # public via traefik + internal to talk to API
     labels:
