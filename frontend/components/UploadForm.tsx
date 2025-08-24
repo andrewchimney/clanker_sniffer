@@ -30,7 +30,7 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
   }
 
   const [start, setStart] = useState<'audio' | 'text' | 'search'>('audio');
-  const [end, setEnd] = useState('audio');
+  const [end, setEnd] = useState('classification');
   const [file, setFile] = useState<File | null>(null);
   const [lyrics, setLyrics] = useState('');
   const [title, setTitle] = useState('');

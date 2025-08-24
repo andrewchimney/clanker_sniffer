@@ -1,4 +1,60 @@
+networks:
+  web: {}   # public edge; only traefik + frontend join this
+
 services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.le.acme.email=andrewchimney@gmail.com
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    networks: [web]
+  frontend:
+    build: ./frontend
+    container_name: clanker_frontend
+    depends_on:
+      orchestrator_api:
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CHOKIDAR_USEPOLLING: "true"
+    # remove host port publish:
+    # ports: ["3000:3000"]
+    expose: ["3000"]
+    working_dir: /app
+    command: sh -c "npm run dev"
+    volumes:
+      - ./frontend:/app
+      - ./shared_data:/shared_data
+      - /app/node_modules
+    env_file: [./.env]
+    networks: [web, default]             # public via traefik + internal to talk to API
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.frontend.rule=Host(`clankr.app`,`www.clankr.app`)
+      - traefik.http.routers.frontend.entrypoints=websecure
+      - traefik.http.routers.frontend.tls.certresolver=le
+      - traefik.http.services.frontend.loadbalancer.server.port=3000
+      # optional hardening:
+      - traefik.http.middlewares.hsts.headers.stsSeconds=31536000
+      - traefik.http.middlewares.hsts.headers.stsIncludeSubdomains=true
+      - traefik.http.routers.frontend.middlewares=hsts
   db:
     image: postgres:15
     container_name: clanker_db
@@ -10,38 +66,31 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./shared_data:/shared_data
+    command:
+      - "postgres"
+      - "-c"
+      - "log_timezone=UTC"                      # match your app’s UTC timestamps
+      - "-c"
+      - "log_min_messages=info"                 # show INFO and above
+      - "-c"
+      - "log_min_error_statement=info"
+      - "-c"
+      - "client_min_messages=notice"
+      - "-c"
+      - "log_line_prefix=%m %s:     clanker_db %u@%d app=%a [%p] "
     ports:
       - "5432:5432"
-
-
-  frontend:
-    build: 
-      context: ./frontend
-      dockerfile: Dockerfile-prod
-    container_name: clanker_frontend
-    platform: linux/arm64 
-    depends_on:
-      - db
-    restart: on-failure
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      CHOKIDAR_USEPOLLING: "true"
-    ports:
-      - "3000:3000"
-    working_dir: /app
-    command: sh -c "npm run build && npm start"
-    volumes: 
-      - ./frontend:/app
-      - ./shared_data:/shared_data
-      - /app/node_modules
-    env_file:
-      - ./.env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -h localhost"]
+      interval: 100s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   demucs_api:
     build: ./demucs-api
     container_name: clanker_demucs
-    depends_on:
-      - frontend
     restart: on-failure
     volumes:
       - ./demucs-api:/app
@@ -49,13 +98,17 @@ services:
     working_dir: /app
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 100s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
 
   whisper_api:
     build: ./whisper-api
     container_name: clanker_whisper
-    depends_on:
-      - frontend
     restart: on-failure
     volumes:
       - ./whisper-api:/app
@@ -65,13 +118,17 @@ services:
       - ./.env
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 100s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
 
   classifier_api:
     build: ./classifier-api
     container_name: clanker_classifier
-    depends_on:
-      - frontend
     restart: on-failure
     volumes:
       - ./classifier-api:/app
@@ -79,12 +136,16 @@ services:
     working_dir: /app
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 100s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
   acousti_api:
     build: ./acousti-api
     container_name: clanker_acousti
-    depends_on:
-      - frontend
     restart: on-failure
     volumes:
       - ./acousti-api:/app
@@ -92,15 +153,26 @@ services:
     working_dir: /app
     env_file:
       - ./.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 100s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
   orchestrator_api:
     build: ./orchestrator-api
     container_name: clanker_orchestrator
     depends_on:
-      - demucs_api
-      - whisper_api
-      - classifier_api
-      - acousti_api
-      - db
+      db:
+        condition: service_healthy
+      demucs_api:
+        condition: service_healthy
+      whisper_api:
+        condition: service_healthy
+      classifier_api:
+        condition: service_healthy
+      acousti_api:
+        condition: service_healthy
     volumes:
       - ./orchestrator-api:/app
       - ./shared_data:/shared_data
@@ -109,12 +181,12 @@ services:
       - ./.env
     expose:
       - "8000"
-
-
-
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 100s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
 volumes:
   pgdata:
-
-
-
