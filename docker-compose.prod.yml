@@ -25,7 +25,9 @@ services:
       - ./letsencrypt:/letsencrypt
     networks: [web]
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: runner 
     container_name: clanker_frontend
     depends_on:
       orchestrator_api:
@@ -34,11 +36,12 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       CHOKIDAR_USEPOLLING: "true"
+      NODE_ENV: production
     # remove host port publish:
     # ports: ["3000:3000"]
     expose: ["3000"]
     working_dir: /app
-    command: sh -c "npm run dev"
+    command: ["npm","run","start"]
     volumes:
       - ./frontend:/app
       - ./shared_data:/shared_data

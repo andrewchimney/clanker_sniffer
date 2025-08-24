@@ -45,6 +45,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       CHOKIDAR_USEPOLLING: "true"
+      NODE_ENV: dev
     ports:
       - "3000:3000"
     working_dir: /app

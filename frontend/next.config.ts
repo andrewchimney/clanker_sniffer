@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  //output: 'standalone',  
   experimental: {
     // ⛔ Disable Lightning CSS
     optimizeCss: false,
