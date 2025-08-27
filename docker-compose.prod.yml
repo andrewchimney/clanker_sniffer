@@ -202,9 +202,9 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf:ro
       - ./fluentd/oci_api_key.pem:/fluentd/oci_api_key.pem:ro
-      - ./fluentd/oci_config:/fluentd/oci_config:ro  # <-- mount the file here
+      - ./fluentd/oci_config:/fluentd/oci_config:ro
+      - fluentd-pos:/fluentd/pos  # <-- mount the file here
         
-
-
 volumes:
   pgdata:
+  fluentd-pos:
