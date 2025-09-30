@@ -305,12 +305,12 @@ async def upsert_song(
     return row["id"]
 
 
-async def get_song_by_fingerprint_hash(conn, fingerprint_hash: str) -> int | None:
+async def get_song_by_fingerprint_hash(conn, fingerprint_hash: str) -> dict | None:
     
         row = await conn.fetchrow(
             "SELECT * FROM songs WHERE fingerprint_hash = $1", fingerprint_hash
         )
-        return row["id"] if row else None
+        return row if row else None
 
 
 # helper

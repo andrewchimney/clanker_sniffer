@@ -95,7 +95,7 @@ export default function JobModal({ jobModalOpen, setJobModalOpen, jobId, handleC
           </div>
         </div>
 
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex justify-center">
           <button onClick={()=>setJobModalOpen(false)} className="px-4 py-2 rounded bg-black text-white hover:opacity-90">
             Stop
           </button>

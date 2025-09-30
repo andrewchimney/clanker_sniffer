@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     app.state.stop_event = asyncio.Event()
 
     # Optionally run multiple workers for concurrency
-    worker_count = 1  # bump if you want N workers
+    worker_count = 3  # bump if you want N workers
     app.state.worker_tasks = [
         asyncio.create_task(worker_loop(app.state.db_pool, app.state.stop_event))
         for _ in range(worker_count)
@@ -134,49 +134,89 @@ async def process_job(conn):
             matches = acousti_out.get("matches", [])
             title = matches[0].get("title") if matches else "Unknown"
             artist = matches[0].get("artist") if matches else "Unknown"
+            job["file_path"]=acousti_out.get("file_path")
             
-            
-            fp      = acousti_out.get("fingerprint")
+            fp  = acousti_out.get("fingerprint")
+            job["fp"] = fp
             fp_hash = compute_fingerprint_hash(fp) if fp else None
+            job["fp_hash"] = fp_hash
             if not fp_hash:
             # fingerprint failed — mark job failed early
                 await update_job(conn, job_id=job["id"], status="Failed")
                 logger.error("no fingerprint generated")
                 return
-            song_id = await get_song_by_fingerprint_hash(conn, fp_hash)
+            song = await get_song_by_fingerprint_hash(conn, fp_hash)
             
-            if(song_id):
-                await conn.execute(
-                """
-                UPDATE jobs
-                SET
-                status  = 'Completed',
-                song_id = COALESCE($2, song_id)
-                WHERE id = $1
-                """,
-                job["id"],
-                song_id,
-        
-    )
-                song_id = await finalize_job_if_ready(conn, job["id"])
-                return ("completed", song_id)
-
-            
+            if(not job["want_demucs"]):
+                if(song and song["id"]):
+                    await conn.execute(
+                    """
+                    UPDATE jobs
+                    SET
+                    status  = 'Completed',
+                    song_id = COALESCE($2, song_id)
+                    WHERE id = $1
+                    """,
+                    job["id"],
+                    song["id"],
+                    )
+                    song_id = await finalize_job_if_ready(conn, job["id"])
+                    return ("completed", song_id)
                 
-    
+            #logger.info(job["want_demucs"])
+            if(job["want_demucs"]):
+                # logger.info(song["file_path"])
+                # logger.info(song["file_path"])
+                # logger.info(f"testing {song['file_path'].startswith('/shared_data/stems')}")
+                # logger.info(job["current_stage"])
+                
+                if(song and song.get("file_path") and song["file_path"].startswith("/shared_data/stems")):
+                    logger.info(song["file_path"])
+                    job["file_path"] = song["file_path"]
+                    job["done_demucs"] = True
+                    job["current_stage"]="whisper"
+                    #logger.info(f"{job}")
+                    
+            #logger.info(job["want_whisper"])
+            if(job["want_whisper"]):
+                if(song and song["lyrics"] is not None):
+                    job["lyrics"] = song["lyrics"]
+                    job["done_whisper"] = True
+                    job["current_stage"]="classify"
+                    
+                    
+            #logger.info(job["want_classify"])
+            if(job["want_classify"]):
+                if(song and song["classification"] is not None):
+                    job["classification"] = song["classification"]
+                    job["accuracy"] = song["accuracy"]
+                    job["done_classify"] = True
+                    job["current_stage"]="None"
+            
+            
 
+            logger.info(f"{job}")
+                
             await update_job(
                 conn,
                 job_id=job["id"],
                 title=title,
                 artist=artist,
+                accuracy=job["accuracy"],
+                classification=job["classification"],
+                lyrics=job["lyrics"],
+                
                 duration=acousti_out.get("duration"),
-                fingerprint=acousti_out.get("fingerprint"),
-                fingerprint_hash=compute_fingerprint_hash(acousti_out.get("fingerprint")),
-                file_path=acousti_out.get("file_path"),
+                fingerprint=job["fp"],
+                fingerprint_hash=job["fp_hash"],
+                file_path=job["file_path"],
                 done_identify= True,
+                done_demucs= job["done_demucs"],
+                done_classify=job["done_classify"],
+                done_whisper=job["done_whisper"],
                 status="Not Started",
-                current_stage="demucs"
+                current_stage=job["current_stage"]
+                
             )
                
         elif stage == "demucs":
