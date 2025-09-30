@@ -3,10 +3,17 @@ import SongModal from './SongModal';
 import { useState } from 'react';
 import { mutate } from 'swr';
 import { useEffect } from 'react';
+import JobModal from './JobModal';
 function cn(...inputs: (string | boolean | null | undefined)[]): string {
   return inputs.filter(Boolean).join(' ');
 }
 
+
+type Props = {
+  setJobModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setJobId: React.Dispatch<React.SetStateAction<number | null>>;
+  setSelected: React.Dispatch<React.SetStateAction<number | null>>
+};
 
 const steps = [
   { key: 'audio', label: '→ 🎧 Audio' },
@@ -17,7 +24,7 @@ const steps = [
 ];
 
 
-export default function UploadForm({ onResult }: { onResult: (data: any) => void }) {
+export default function UploadForm({ setJobModalOpen, setJobId, setSelected }: Props) {
 
   interface SongResult {
     title: string;
@@ -36,9 +43,6 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [loading, setLoading] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [songData, setSongData] = useState<SongResult | null>(null);
-
 
   const startIndex = start === 'text'
     ? steps.findIndex(s => s.key === 'lyrics')
@@ -61,7 +65,7 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
     if (start === 'audio' && !file) return alert('Missing audio file');
     if (start === 'text' && !lyrics) return alert('Missing lyrics');
     if (start === 'search' && !(title && artist)) return alert('Missing title or artist');
- 
+
     setLoading(true);
     const formData = new FormData();
 
@@ -85,54 +89,102 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
         body: formData,
       });
       const data = await res.json();
-      onResult(data);
-      setSongData(data.result);
-      setModalOpen(true);
+      if (start == "search") {
+        if (data.status == "404") {
+          alert("song not found in our database")
+        }
+        setSelected(data.song_id)
+
+      } else {
+        setJobId(data.job_id)
+        setJobModalOpen(true)
+
+      }
+
+
+
     } catch (err) {
       alert('Upload failed');
+      console.log(err)
     } finally {
       mutate('/api/songs');
       setLoading(false);
     }
   };
 
-
   return (
     <>
-      <SongModal isOpen={modalOpen} onClose={() => setModalOpen(false)} result={songData} />
+
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <h2 className="text-xl font-bold">Clanker Sniffer 🎧</h2>
 
-        <div className="flex items-center gap-6 overflow-x-auto">
-          <div className="flex gap-4 items-center">
-            <label className="font-medium">Select Input:</label>
-            <select
-              value={start}
-              onChange={e => setStart(e.target.value as typeof start)}
-              className="border rounded px-2 py-1 bg-black text-white"
-            >
-              <option value="audio">🎧 Upload Audio</option>
-              <option value="search">🧠 Song Info (DB)</option>
-              <option value="text">📝 Paste Lyrics</option>
-            </select>
+        <div className="flex items-center justify-center gap-6 overflow-x-auto">
+
+
+          {/* Select Input */}
+          <div className="flex items-center gap-4">
+            <label className="font-medium text-white/90">Select Input:</label>
+            <div className="relative">
+              <select
+                value={start}
+                onChange={(e) => setStart(e.target.value as typeof start)}
+                className="
+                h-11 rounded-xl border border-white/20 bg-white/10 text-white/90
+                px-4 pr-10
+                focus:outline-none focus:ring-2 focus:ring-white/40
+                hover:bg-white/15 transition
+                appearance-none
+                shadow-sm
+              "
+              >
+                <option value="audio">🎧 Upload Audio</option>
+                <option value="search">🧠 Song Info (DB)</option>
+                <option value="text">📝 Paste Lyrics</option>
+              </select>
+              {/* chevron */}
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <svg
+                  className="h-4 w-4 text-white/70"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path d="M5.23 7.21a.75.75 0 011.06.02L10 10.17l3.71-2.94a.75.75 0 011.04 1.08l-4.24 3.37a.75.75 0 01-.94 0L5.21 8.31a.75.75 0 01.02-1.1z" />
+                </svg>
+              </span>
+            </div>
           </div>
 
-          <div className="flex gap-4 items-center">
-            <label className="font-medium">Select Output:</label>
-            <select
-              value={end}
-              onChange={e => setEnd(e.target.value)}
-              className="border rounded px-2 py-1 bg-black text-white"
-            >
-              {validEndSteps.map(step => (
-                <option key={step.key} value={step.key}>{step.label}</option>
-              ))}
-            </select>
+          {/* Select Output */}
+          <div className="flex items-center gap-4">
+            <label className="font-medium text-white/90">Select Output:</label>
+            <div className="relative">
+              <select
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                className="
+              h-11 rounded-xl border border-white/20 bg-white/10 text-white/90
+              px-4 pr-10
+              focus:outline-none focus:ring-2 focus:ring-white/40
+              hover:bg-white/15 transition
+              appearance-none
+              shadow-sm
+            "
+              >
+                {validEndSteps.map((step) => (
+                  <option key={step.key} value={step.key}>{step.label}</option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <svg className="h-4 w-4 text-white/70" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M5.23 7.21a.75.75 0 011.06.02L10 10.17l3.71-2.94a.75.75 0 011.04 1.08l-4.24 3.37a.75.75 0 01-.94 0L5.21 8.31a.75.75 0 01.02-1.1z" />
+                </svg>
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto">
+
+        <div className="flex items-center justify-center gap-2 overflow-x-auto">
           {steps.map((step, index) => {
             if (step.key === 'stems') return null; // 🚫 Don't render the button
 
@@ -151,7 +203,7 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
                   'rounded-full border px-4 py-1 whitespace-nowrap flex items-center',
                   index >= startIndex && index <= endIndex
                     ? 'bg-white text-black'
-                    : 'bg-transparent text-white border-white',
+                    : 'border-white/20 bg-white/10 text-white/90 px-4 pr-10 text-white border-white',
                   index > 0 && 'relative before:content-[""] before:mr-2 before:text-white'
                 )}
               >
@@ -160,48 +212,80 @@ export default function UploadForm({ onResult }: { onResult: (data: any) => void
             );
           })}
         </div>
-
-
-        {
-          start === 'audio' && (
-            <input type="file" accept=".wav,.mp3" onChange={e => setFile(e.target.files?.[0] || null)} required />
-          )
-        }
-
-        {
-          start === 'text' && (
-            <textarea
-              value={lyrics}
-              onChange={e => setLyrics(e.target.value)}
-              placeholder="Paste lyrics here..."
-              className="min-h-[100px]"
-              required
-            />
-          )
-        }
-
-        {
-          (start === 'audio' || start === 'text'|| start==='search') && (
+        <div className="flex flex-col items-center gap-4 w-full">
+          {(start === 'audio' || start === 'text' || start === 'search') && (
             <>
               <input
                 value={title}
-                onChange={e => setTitle(e.target.value)}
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder="Song Title (optional)"
-                className="border p-2 bg-black text-white"
+                className="
+            w-full max-w-3xl mx-auto
+            rounded-xl border border-white/20 bg-white/10 text-white/90
+            focus:outline-none focus:ring-2 focus:ring-white/40
+            px-5 py-3 placeholder-white/50
+          "
               />
+
               <input
                 value={artist}
-                onChange={e => setArtist(e.target.value)}
+                onChange={(e) => setArtist(e.target.value)}
                 placeholder="Artist (optional)"
-                className="border p-2 bg-black text-white"
+                className="
+          w-full max-w-3xl mx-auto
+          rounded-xl border border-white/20 bg-white/10 text-white/90
+          focus:outline-none focus:ring-2 focus:ring-white/40
+          px-5 py-3 placeholder-white/50
+        "
               />
             </>
-          )
-        }
+          )}
 
-        <button type="submit" disabled={loading} className="bg-white text-black px-4 py-2 rounded">
-          {loading ? 'Analyzing...' : 'Submit 🚀'}
-        </button>
+          {start === 'audio' && (
+            <input
+              type="file"
+              accept=".wav,.mp3"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              required
+              className="
+        w-full max-w-3xl mx-auto
+        rounded-xl border border-white/20 bg-white/10 text-white/90
+        focus:outline-none focus:ring-2 focus:ring-white/40
+        px-5 py-3 placeholder-white/50
+        file:mr-4 file:rounded-md file:border-0 file:bg-white file:text-black
+        file:px-4 file:py-2 file:font-semibold hover:file:opacity-90
+      "
+            />
+          )}
+
+          {start === 'text' && (
+            <textarea
+              value={lyrics}
+              onChange={(e) => setLyrics(e.target.value)}
+              placeholder="Paste lyrics here..."
+              className="
+        w-full max-w-3xl mx-auto min-h-[120px]
+        rounded-xl border border-white/20 bg-white/10 text-white/90
+        focus:outline-none focus:ring-2 focus:ring-white/40
+        px-5 py-3 placeholder-white/50
+      "
+              required
+            />
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="
+      w-full max-w-sm mx-auto
+      inline-flex items-center justify-center
+      bg-white text-black px-6 py-2 rounded-md text-sm
+    "
+          >
+            {loading ? 'Analyzing...' : 'Submit 🚀'}
+          </button>
+        </div>
+
       </form >
     </>
   );

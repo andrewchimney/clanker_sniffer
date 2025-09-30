@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface SongResult {
     title: string;
@@ -13,12 +13,13 @@ interface SongResult {
 }
 
 interface Props {
-    isOpen: boolean;
     onClose: () => void;
-    result: SongResult | null;
+    selected: number | null;
 }
 
-export default function SongModal({ isOpen, onClose, result }: Props) {
+export default function SongModal({ onClose, selected }: Props) {
+
+    const [data, setData] = useState<SongResult | null>(null)
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -27,7 +28,49 @@ export default function SongModal({ isOpen, onClose, result }: Props) {
         return () => document.removeEventListener('keydown', handleEsc);
     }, [onClose]);
 
-    if (!isOpen || !result) return null;
+     useEffect(() => {
+    if (selected == null) {
+      setData(null);
+      return;
+    }
+
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        
+        const res = await fetch(`/api/songs/${(selected)}`, {
+          headers: { Accept: 'application/json' },
+          signal: ctrl.signal,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json: SongResult = await res.json();
+        setData(json);
+      } catch (e: any) {
+      }
+    })();
+
+    return () => ctrl.abort(); // cancel if modal closes or id changes
+  }, [selected]);
+
+    if (selected == null) return null;
+    if (data==null) return null;
+
+    // const getSongData =async  () =>{
+    //     const res = await fetch(`/api/songs/${selected}`, { headers: { Accept: 'application/json' } });
+    //     if (!res.ok) return;
+    //     const data = await res.json();
+    //     setData(data)
+    // }
+    // getSongData();
+    console.log(selected)
+    console.log(data)
+
+
+
+     
+
+
+
 
     return (
         <div className="fixed inset-0 z-50 bg-black/5 backdrop-blur-sm flex items-center justify-center p-4">
@@ -39,22 +82,22 @@ export default function SongModal({ isOpen, onClose, result }: Props) {
                     &times;
                 </button>
 
-                <h2 className="text-xl font-bold mb-1">{result.title}</h2>
-                <p className="text-md text-gray-800 mb-3">by {result.artist}</p>
+                <h2 className="text-xl font-bold mb-1">{data.title}</h2>
+                <p className="text-md text-gray-800 mb-3">by {data.artist}</p>
 
                 <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
                     <div>
                         <span className="text-gray-600 font-semibold">Duration:</span>
-                        <p>{result.duration} sec</p>
+                        <p>{data.duration} sec</p>
                     </div>
                     <div>
                         <span className="text-gray-600 font-semibold">Classification:</span>
-                        <p>{result.classification} ({(result.accuracy * 100).toFixed(2)}%)</p>
+                        <p>{data.classification} ({(data.accuracy * 100).toFixed(2)}%)</p>
                     </div>
                     <div className="col-span-2">
                         <span className="text-gray-600 font-semibold">Lyrics:</span>
                         <pre className="whitespace-pre-wrap bg-white/50 rounded p-3 text-sm text-gray-900">
-                            {result.lyrics}
+                            {data.lyrics}
                         </pre>
                     </div>
                 </div>
@@ -63,7 +106,7 @@ export default function SongModal({ isOpen, onClose, result }: Props) {
                     <div className="col-span-2">
                         <span className="text-gray-600 font-semibold">Fingerprint:</span>
                         <pre className="whitespace-pre-wrap break-words overflow-x-hidden bg-white/50 rounded p-3 text-sm text-gray-900 max-h-[200px] overflow-y-auto">
-                            {result.fingerprint}
+                            {data.fingerprint}
                         </pre>
 
                     </div>

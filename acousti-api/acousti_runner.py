@@ -110,7 +110,8 @@ async def convert(file_path: str = Form(...)):
         logger.info("🟦Converted Successfully")
         return JSONResponse({"file_path": wav_path})
     except RuntimeError as e:
-        print(e)
+        logger.info((e))
+        logger.error(e)
         return JSONResponse({"error": str(e)}, status_code=500)
       
 

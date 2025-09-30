@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS songs (
 CREATE INDEX IF NOT EXISTS idx_songs_hash ON songs(fingerprint_hash);
 
 
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+drop table jobs;
+
+
 CREATE TABLE jobs (
   id               BIGSERIAL PRIMARY KEY,
   song_id          INTEGER REFERENCES songs(id) ON DELETE SET NULL,
@@ -32,7 +37,7 @@ CREATE TABLE jobs (
   file_path       TEXT,
   duration         INTEGER,
   fingerprint      TEXT,
-  fingerprint_hash TEXT UNIQUE,     -- natural key for dedupe/upsert
+  fingerprint_hash TEXT,     -- natural key for dedupe/upsert
   audio_processed  BOOLEAN DEFAULT FALSE,
   want_identify    BOOLEAN NOT NULL DEFAULT FALSE,
   want_demucs      BOOLEAN NOT NULL DEFAULT FALSE,

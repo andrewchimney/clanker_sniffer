@@ -15,13 +15,15 @@ async def lifespan(app):
     app.state.db_pool = await asyncpg.create_pool(dsn=dsn)
     yield
     await app.state.db_pool.close()
-    
+
+
 import asyncpg
 from typing import Optional, Dict, Any, Iterable
 
 # ---- CREATE (INSERT) ----
 import asyncpg
 from typing import Optional
+
 
 async def create_job(
     conn: asyncpg.Connection,
@@ -67,14 +69,32 @@ async def create_job(
     )
     RETURNING id;
     """
-    return await conn.fetchval(sql,
-        song_id, current_stage, status, input_type,
-        title, artist, lyrics, classification, accuracy,
-        file_path, duration, fingerprint, fingerprint_hash,
+    return await conn.fetchval(
+        sql,
+        song_id,
+        current_stage,
+        status,
+        input_type,
+        title,
+        artist,
+        lyrics,
+        classification,
+        accuracy,
+        file_path,
+        duration,
+        fingerprint,
+        fingerprint_hash,
         audio_processed,
-        want_identify, want_demucs, want_whisper, want_classify,
-        done_identify, done_demucs, done_whisper, done_classify
+        want_identify,
+        want_demucs,
+        want_whisper,
+        want_classify,
+        done_identify,
+        done_demucs,
+        done_whisper,
+        done_classify,
     )
+
 
 async def update_job(conn, job_id: int, **fields):
     if not fields:
@@ -83,6 +103,7 @@ async def update_job(conn, job_id: int, **fields):
     values = list(fields.values()) + [job_id]
     sql = f"UPDATE jobs SET {cols} WHERE id = ${len(values)}"
     await conn.execute(sql, *values)
+
 
 # ---- UPSERT by fingerprint_hash (idempotent write) ----
 # Pass any fields you want to set; None means "don't overwrite existing".
@@ -155,13 +176,32 @@ async def upsert_job_by_fingerprint(
       done_classify  = COALESCE(EXCLUDED.done_classify,  jobs.done_classify)
     RETURNING id;
     """
-    return await conn.fetchval(sql,
-        fingerprint_hash, song_id, current_stage, status, input_type,
-        title, artist, lyrics, classification, accuracy,
-        file_path, duration, fingerprint, audio_processed,
-        want_identify, want_demucs, want_whisper, want_classify,
-        done_identify, done_demucs, done_whisper, done_classify
+    return await conn.fetchval(
+        sql,
+        fingerprint_hash,
+        song_id,
+        current_stage,
+        status,
+        input_type,
+        title,
+        artist,
+        lyrics,
+        classification,
+        accuracy,
+        file_path,
+        duration,
+        fingerprint,
+        audio_processed,
+        want_identify,
+        want_demucs,
+        want_whisper,
+        want_classify,
+        done_identify,
+        done_demucs,
+        done_whisper,
+        done_classify,
     )
+
 
 # ---- UPDATE by id (partial/dynamic) ----
 async def update_job_fields(
@@ -170,12 +210,29 @@ async def update_job_fields(
     fields: Dict[str, Any],
     *,
     allowed: Iterable[str] = (
-        "song_id","current_stage","status","input_type",
-        "title","artist","lyrics","classification","accuracy",
-        "file_path","duration","fingerprint","fingerprint_hash","audio_processed",
-        "want_identify","want_demucs","want_whisper","want_classify",
-        "done_identify","done_demucs","done_whisper","done_classify"
-    )
+        "song_id",
+        "current_stage",
+        "status",
+        "input_type",
+        "title",
+        "artist",
+        "lyrics",
+        "classification",
+        "accuracy",
+        "file_path",
+        "duration",
+        "fingerprint",
+        "fingerprint_hash",
+        "audio_processed",
+        "want_identify",
+        "want_demucs",
+        "want_whisper",
+        "want_classify",
+        "done_identify",
+        "done_demucs",
+        "done_whisper",
+        "done_classify",
+    ),
 ) -> None:
     """
     Dynamically updates only the provided columns.
@@ -197,7 +254,6 @@ async def update_job_fields(
     await conn.execute(sql, *values)
 
 
-
 async def upsert_song(
     conn: asyncpg.Connection,
     *,
@@ -214,7 +270,6 @@ async def upsert_song(
 ) -> int:
     # normalize
     dur = int(duration) if isinstance(duration, float) else duration
-   
 
     row = await conn.fetchrow(
         """
@@ -236,30 +291,67 @@ async def upsert_song(
             audio_processed = (EXCLUDED.audio_processed OR songs.audio_processed)
         RETURNING id;
         """,
-        title, artist, dur, fingerprint, fingerprint_hash,
-        lyrics, classification, accuracy, file_path, audio_processed,
+        title,
+        artist,
+        dur,
+        fingerprint,
+        fingerprint_hash,
+        lyrics,
+        classification,
+        accuracy,
+        file_path,
+        audio_processed,
     )
     return row["id"]
 
-async def get_song_by_fingerprint_hash(pool, fingerprint_hash: str) -> Optional[dict]:
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM songs WHERE fingerprint_hash = $1", fingerprint_hash)
-        return dict(row) if row else None
+
+async def get_song_by_fingerprint_hash(conn, fingerprint_hash: str) -> int | None:
     
-async def get_song_by_title_artist(pool, title, artist):
+        row = await conn.fetchrow(
+            "SELECT * FROM songs WHERE fingerprint_hash = $1", fingerprint_hash
+        )
+        return row["id"] if row else None
+
+
+# helper
+async def get_song_by_title_artist(pool, title, artist) -> int | None:
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("""
-            SELECT * FROM songs
-            WHERE LOWER(title) = LOWER($1) AND LOWER(artist) = LOWER($2)
+        row = await conn.fetchrow(
+            """
+            SELECT id
+            FROM songs
+            WHERE LOWER(title) = LOWER($1)
+              AND LOWER(artist) = LOWER($2)
             LIMIT 1
-        """, title, artist)
-        return dict(row) if row else None
+            """,
+            title,
+            artist,
+        )
+        return row["id"] if row else None
+
+
+async def search_song_fuzzy(pool, title: str, artist: str, limit: int = 5):
+    sql = """
+    SELECT id, title, artist,
+       similarity(LOWER(title),  LOWER($1)) +
+       similarity(LOWER(artist), LOWER($2)) AS score
+FROM songs
+ORDER BY (LOWER(title) <-> LOWER($1)) +
+         (LOWER(artist) <-> LOWER($2))
+LIMIT $3;
+
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(sql, title, artist, limit)
+    return [dict(r) for r in rows]
+
+
 
 async def get_job(pool, job_id: int) -> Optional[Dict[str, Any]]:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
         return dict(row) if row else None
-    
+
+
 async def setup_db_pool(dsn: str):
     return await asyncpg.create_pool(dsn)
-

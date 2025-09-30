@@ -15,6 +15,7 @@ from services import (
     run_classify, 
     run_acousti,
 )
+import traceback
 from utils import (
     SHARED_PATH, 
     STEMS_PATH, 
@@ -29,6 +30,9 @@ from db import (
     upsert_song,
     dsn,
     create_job,
+    get_song_by_title_artist,
+    get_song_by_fingerprint_hash,
+    search_song_fuzzy
 )
 import logging
 
@@ -117,17 +121,49 @@ async def process_job(conn):
     try:
         stage = job["current_stage"]
         file_path= job["file_path"]
+        input_type = job["input_type"]
         if not stage:
             # Nothing to do — finalize as complete just in case
             await conn.execute("UPDATE jobs SET status='Complete' WHERE id=$1", job["id"])
             return None
         # Run one stage
+        
         if stage == "identify":
             acousti_out = await run_acousti(file_path)
             
             matches = acousti_out.get("matches", [])
             title = matches[0].get("title") if matches else "Unknown"
             artist = matches[0].get("artist") if matches else "Unknown"
+            
+            
+            fp      = acousti_out.get("fingerprint")
+            fp_hash = compute_fingerprint_hash(fp) if fp else None
+            if not fp_hash:
+            # fingerprint failed — mark job failed early
+                await update_job(conn, job_id=job["id"], status="Failed")
+                logger.error("no fingerprint generated")
+                return
+            song_id = await get_song_by_fingerprint_hash(conn, fp_hash)
+            
+            if(song_id):
+                await conn.execute(
+                """
+                UPDATE jobs
+                SET
+                status  = 'Completed',
+                song_id = COALESCE($2, song_id)
+                WHERE id = $1
+                """,
+                job["id"],
+                song_id,
+        
+    )
+                song_id = await finalize_job_if_ready(conn, job["id"])
+                return ("completed", song_id)
+
+            
+                
+    
 
             await update_job(
                 conn,
@@ -193,16 +229,16 @@ async def process_job(conn):
             return ("in_progress", job["id"])  # more stages remain
 
     except Exception as e:
-        print(e)
-        # Simple failure path; you can expand to backoff logic as needed
-        await conn.execute(
-            "UPDATE jobs SET status='Failed' WHERE id=$1",
-            job["id"],
-        )
+        logger.error("Job %s failed at stage=%s. Error: %s", job["id"], job.get("current_stage"), e)
+        try:
+            await conn.execute("UPDATE jobs SET status='Failed' WHERE id=$1", job["id"])
+        except Exception:
+            logger.exception("Also failed to mark job %s as Failed", job["id"])
         raise
 
+
 def job_is_complete(job: dict) -> bool:
-    """A job is complete when every wanted stage is done."""
+    """A job is complete when every wanted stage is done or is marked as complete."""
     wants_dones = [
         ("identify", job["want_identify"], job["done_identify"]),
         ("demucs",   job["want_demucs"],   job["done_demucs"]),
@@ -254,7 +290,20 @@ async def finalize_job_if_ready(conn, job_id: int) -> int | None:
         }
 
     song_id = await upsert_song(conn, **song_fields)
-    await conn.execute("DELETE FROM jobs WHERE id=$1", job_id)
+    #await conn.execute("DELETE FROM jobs WHERE id=$1", job_id)
+    await conn.execute(
+        """
+        UPDATE jobs
+        SET
+        status  = 'Completed',
+        song_id = COALESCE($2, song_id)
+        WHERE id = $1
+        """,
+        job_id,
+        song_id,
+        
+    )
+
 
 
 
@@ -320,6 +369,28 @@ async def list_songs(request: Request):
             status_code=500,
             content={"error": "Database error"}
         )
+        
+@app.get("/api/songs/{song_id}")
+async def get_job(request: Request, song_id: int):
+    try:
+        pool = request.app.state.db_pool
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM songs WHERE id = $1", song_id)
+            if not row:
+                raise HTTPException(status_code=404, detail="Song not found")
+
+            return JSONResponse(
+                status_code=200,
+                content=jsonable_encoder(dict(row))
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("❌ DB error in GET /song/{song_id}:", e)
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Database error"}
+        )
 
 @app.get("/api/jobs/{job_id}")
 async def get_job(request: Request, job_id: int):
@@ -355,14 +426,13 @@ async def analyze(
 ):
     try:
     
-        db_pool = request.app.state.db_pool
-        
+        db_pool = request.app.state.db_pool        
         want_identify     = "identify" in outputs
         want_demucs       = "stems" in outputs 
         want_whisper      = "lyrics" in outputs
         want_classify     = "classification" in outputs
-        
         current_stage = None
+        
         
         if input_type=="audio":
             if not audio:
@@ -375,13 +445,25 @@ async def analyze(
             if not title or not artist:
                 return {"success": False, "error": "Missing title or artist for search input"}
 
-            #existing = await get_song_by_title_artist(db_pool, title, artist)
+            matches = await search_song_fuzzy(db_pool, title, artist)
 
-            # if not existing:
-            #     return {"success": False, "error": "Song not found in database"}
+            for m in matches:
+                print(m["id"], m["title"], m["artist"], round(m["score"], 3))
+
+            if matches:  # non-empty list
+                best = matches[0]  # top scored match
+                if best.get("score", 0) >= 0.3:  # apply similarity threshold
+                    return {"success": True, "song_id": best["id"], "match": best}
+
+            return {"success": False, "error": "Not found", "status": 404}
+        
+        if input_type == "text":
+            file_path="delete"
+
+
+
+
             
-            # return {"success": True, "song": existing}
-
         
         job_id = await create_job(
             db_pool,
@@ -396,8 +478,10 @@ async def analyze(
             want_whisper=want_whisper, 
             want_classify=want_classify
 )
+        
         return {"success": True, "job_id": job_id}
     except Exception as e:
-        print(str(e))
-        return {"success": False, "error": str(e)}
-    
+        tb = traceback.extract_tb(e.__traceback__)
+        filename, lineno, func, text = tb[-1]   # last entry = where the error occurred
+        print(f"Error on line {lineno} in {filename}: {str(e)}")
+        return {"success": False, "error": f"{str(e)} (line {lineno})"}

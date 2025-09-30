@@ -84,6 +84,11 @@ services:
       - ./whisper-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
+    command: >
+      uvicorn whisper_runner:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app
+      --log-config /shared_data/configs/logconfig.json
     env_file:
       - ./.env
     expose:
@@ -104,6 +109,11 @@ services:
       - ./classifier-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
+    command: >
+      uvicorn classifier_runner:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app
+      --log-config /shared_data/configs/logconfig.json
     expose:
       - "8000"
     healthcheck:
@@ -120,6 +130,11 @@ services:
     volumes:
       - ./acousti-api:/app
       - ./shared_data:/shared_data
+    command: >
+      uvicorn acousti_runner:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app
+      --log-config /shared_data/configs/logconfig.json
     working_dir: /app
     env_file:
       - ./.env
@@ -147,6 +162,11 @@ services:
       - ./orchestrator-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
+    command: >
+      uvicorn orchestrator_runner:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app
+      --log-config /shared_data/configs/logconfig.json
     env_file:
       - ./.env
     expose:

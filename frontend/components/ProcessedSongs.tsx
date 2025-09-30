@@ -21,9 +21,13 @@ type Song = {
   duration?: number;
 };
 
-export default function ProcessedSongs() {
+type Props = {
+  setSelected: React.Dispatch<React.SetStateAction<number | null>>;
+};
+
+export default function ProcessedSongs( {setSelected} : Props) {
   const { data, error } = useSWRSongs();
-  const [selected, setSelected] = useState<Song | null>(null);
+  //const [selected, setSelected] = useState<Song | null>(null);
 
   if (error) return <div>Failed to load songs</div>;
   if (!data) return <div>Loading...</div>;
@@ -35,7 +39,7 @@ export default function ProcessedSongs() {
         {data.map((song: Song) => (
           <button
             key={song.id}
-            onClick={() => setSelected(song)}
+            onClick={() => setSelected(Number(song.id))}
             className="text-left p-4 rounded-lg bg-white/10 backdrop-blur border border-white/20 text-white hover:bg-white/20 transition"
           >
             <div className="font-bold text-lg">{song.title || '—'}</div>
@@ -53,11 +57,6 @@ export default function ProcessedSongs() {
         ))}
       </div>
 
-      <SongModal
-        isOpen={!!selected}
-        result={selected as any}
-        onClose={() => setSelected(null)}
-      />
     </div>
   );
 }
