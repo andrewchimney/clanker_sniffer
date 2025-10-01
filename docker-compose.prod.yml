@@ -136,26 +136,26 @@ services:
   #   volumes:
   #     - ./models:/models
   #   restart: unless-stopped
-  # classifier_api:
-  #   build: ./classifier-api
-  #   container_name: clanker_classifier
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./classifier-api:/app
-  #     - ./shared_data:/shared_data
-  #   working_dir: /app
-  #   expose:
-  #     - "8000"
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-  #     interval: 100s
-  #     timeout: 3s
-  #     retries: 30
-  #     start_period: 20s
-  #   environment:
-  #     AI_BASE_URL: "http://ollama:11434"
-  #     AI_MODEL: "qwen2.5:3b-instruct"   # or whatever LocalAI exposes
-  #     AI_API_KEY: "secret"
+  classifier_api:
+    build: ./classifier-api
+    container_name: clanker_classifier
+    restart: unless-stopped
+    volumes:
+      - ./classifier-api:/app
+      - ./shared_data:/shared_data
+    working_dir: /app
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 100s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    environment:
+      AI_BASE_URL: "http://ollama:11434"
+      AI_MODEL: "qwen2.5:3b-instruct"   # or whatever LocalAI exposes
+      AI_API_KEY: "secret"
 
   acousti_api:
     build: ./acousti-api
