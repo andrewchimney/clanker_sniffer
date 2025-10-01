@@ -116,12 +116,43 @@ services:
       --log-config /shared_data/configs/logconfig.json
     expose:
       - "8000"
+    ports:
+      - "8001:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 100s
       timeout: 3s
       retries: 30
       start_period: 20s
+    environment:
+      AI_BASE_URL: "http://ollama:11434"
+      AI_MODEL: "qwen2.5:3b-instruct"   # or whatever LocalAI exposes
+      AI_API_KEY: "secret"
+  ollama:
+    image: ollama/ollama:latest
+    platform: linux/arm64/v8   # good for M-series Macs and Oracle Ampere
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - ./ollama:/root/.ollama
+    restart: unless-stopped
+
+  # one-shot init to pull the model on first boot
+  # ollama-init:
+  #   image: curlimages/curl:8.7.1
+  #   depends_on:
+  #     - ollama
+  #   command: >
+  #     sh -lc '
+  #     until curl -s http://ollama:11434/api/version; do sleep 1; done &&
+  #     curl -sS http://ollama:11434/api/pull
+  #     -d "{\"model\":\"qwen2.5:3b-instruct\"}" && echo "pulled"
+  #     '
+  #   restart: "no"
+
+
 
   acousti_api:
     build: ./acousti-api

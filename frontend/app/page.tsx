@@ -24,6 +24,8 @@ export default function HomePage() {
   //const [queue, setQueue] = useState<string[]>([]);
   const [jobModalOpen, setJobModalOpen] = useState<boolean>(false)
   const [jobId, setJobId] = useState<number | null>(null);
+
+  
   //const [songModal, setSongModalOpen] = useState(false)
 
   //controls the song modal setting selected to a song id will bring up a modal and null will not show a modal
@@ -43,8 +45,6 @@ export default function HomePage() {
       <ProcessedSongs setSelected={setSelected}/>
       <JobModal jobModalOpen={jobModalOpen} setJobModalOpen={setJobModalOpen} jobId={jobId} handleCompleted={handleCompleted} />
       <SongModal selected={selected} onClose={() => setSelected(null)}/>
-    
-
     </main>
 
   );
