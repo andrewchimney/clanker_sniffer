@@ -153,8 +153,8 @@ services:
       retries: 30
       start_period: 20s
     environment:
-      AI_BASE_URL: "http://localai:8080/v1"
-      AI_MODEL: "mistral:instruct"   # or whatever LocalAI exposes
+      AI_BASE_URL: "http://ollama:11434"
+      AI_MODEL: "qwen2.5:3b-instruct"   # or whatever LocalAI exposes
       AI_API_KEY: "secret"
 
   acousti_api:
@@ -202,19 +202,30 @@ services:
       retries: 30
       start_period: 20s
 
-  fluentd:
-    build: ./fluentd
-    user: "0:0"                      # keep root so it can read /var/lib/docker/containers
-    restart: unless-stopped
+  # fluentd:
+  #   build: ./fluentd
+  #   user: "0:0"                      # keep root so it can read /var/lib/docker/containers
+  #   restart: unless-stopped
+  #   environment:
+  #     FLUENT_UID: "0"
+  #     OCI_CONFIG_FILE: /fluentd/oci_config      # <-- explicit path to your config file
+  #   volumes:
+  #     - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  #     - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf:ro
+  #     - ./fluentd/oci_api_key.pem:/fluentd/oci_api_key.pem:ro
+  #     - ./fluentd/oci_config:/fluentd/oci_config:ro
+  #     - fluentd-pos:/fluentd/pos  # <-- mount the file here
+
+  ollama:
+    image: ollama/ollama:latest
+    platform: linux/arm64/v8   # good for M-series Macs and Oracle Ampere
+    ports:
+      - "11434:11434"
     environment:
-      FLUENT_UID: "0"
-      OCI_CONFIG_FILE: /fluentd/oci_config      # <-- explicit path to your config file
+      - OLLAMA_HOST=0.0.0.0
     volumes:
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf:ro
-      - ./fluentd/oci_api_key.pem:/fluentd/oci_api_key.pem:ro
-      - ./fluentd/oci_config:/fluentd/oci_config:ro
-      - fluentd-pos:/fluentd/pos  # <-- mount the file here
+      - ./ollama:/root/.ollama
+    restart: unless-stopped
         
 volumes:
   pgdata:
