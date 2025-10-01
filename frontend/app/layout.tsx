@@ -15,6 +15,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Clankr - Detect AI Lyrics",
   description: "See if songs have AI generated lyrics",
+  icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
 };
 
 export default function RootLayout({
